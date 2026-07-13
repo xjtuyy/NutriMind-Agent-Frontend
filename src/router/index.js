@@ -11,8 +11,8 @@ const router = createRouter({
       component: () => import('@/components/MainLayout.vue'),
       redirect: '/knowledge',
       children: [
-        { path: 'knowledge', component: () => import('@/views/KnowledgePage.vue'), meta: { title: '知识库' } },
-        { path: 'profile', component: () => import('@/views/ProfilePage.vue'), meta: { title: '个人信息' } },
+        { path: 'knowledge', component: () => import('@/views/KnowledgePage.vue'), meta: { title: '营养知识库' } },
+        { path: 'profile', component: () => import('@/views/ProfilePage.vue'), meta: { title: '健康账户' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

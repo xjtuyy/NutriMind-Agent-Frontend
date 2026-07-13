@@ -1,10 +1,10 @@
 <template>
   <AuthShell>
-    <span class="form-eyebrow">账户注册</span>
-    <h2>创建您的账户</h2><p class="hint">完成注册后即可开始管理专业知识资料</p>
+    <span class="form-eyebrow">加入 NutriMind</span>
+    <h2>创建健康账户</h2><p class="hint">从看懂每一餐开始，建立更适合你的饮食方式</p>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
       <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" placeholder="3–50 个字符" autocomplete="username" /></el-form-item>
-      <el-form-item label="工作邮箱" prop="email"><el-input v-model="form.email" size="large" placeholder="name@example.com" autocomplete="email" /></el-form-item>
+      <el-form-item label="电子邮箱" prop="email"><el-input v-model="form.email" size="large" placeholder="name@example.com" autocomplete="email" /></el-form-item>
       <el-form-item label="登录密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password placeholder="至少 6 位" autocomplete="new-password" /></el-form-item>
       <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">创建账户</el-button>
     </el-form>

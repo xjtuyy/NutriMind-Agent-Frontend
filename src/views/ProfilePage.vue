@@ -1,5 +1,5 @@
 <template>
-  <div class="page-head"><div><span class="eyebrow">ACCOUNT CENTER</span><h1 class="page-title">账户信息</h1><p class="page-description">查看您的账户身份、联系信息与平台权限。</p></div><el-tag type="success" effect="light" round>账户状态正常</el-tag></div>
+  <div class="page-head"><div><span class="eyebrow">HEALTH ACCOUNT</span><h1 class="page-title">健康账户</h1><p class="page-description">管理你的基础账户信息，为后续个性化饮食目标做好准备。</p></div><el-tag type="success" effect="light" round>账户状态正常</el-tag></div>
   <div class="profile-grid">
     <section class="panel identity">
       <div class="avatar">{{ userStore.username.slice(0, 1).toUpperCase() }}</div>

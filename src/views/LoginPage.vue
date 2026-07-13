@@ -1,13 +1,13 @@
 <template>
   <AuthShell>
-    <span class="form-eyebrow">账户登录</span>
-    <h2>欢迎回来</h2><p class="hint">请输入您的账户信息以进入管理平台</p>
+    <span class="form-eyebrow">开启健康管理</span>
+    <h2>欢迎回来</h2><p class="hint">登录 NutriMind，继续记录你的健康改变</p>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
       <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" placeholder="请输入用户名" autocomplete="username" /></el-form-item>
       <el-form-item label="登录密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password placeholder="请输入登录密码" autocomplete="current-password" @keyup.enter="submit" /></el-form-item>
-      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">进入工作台</el-button>
+      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">开始使用</el-button>
     </el-form>
-    <div class="divider"><span>首次使用 NutriMind</span></div>
+    <div class="divider"><span>第一次来到 NutriMind</span></div>
     <p class="switch">还没有账户？<router-link to="/register">创建账户</router-link></p>
   </AuthShell>
 </template>

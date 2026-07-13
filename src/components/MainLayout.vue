@@ -1,22 +1,22 @@
 <template>
   <div class="layout">
     <aside>
-      <div class="brand"><span class="mark">N</span><div><b>NutriMind</b><small>AGENT PLATFORM</small></div></div>
-      <div class="nav-label">工作空间</div>
+      <div class="brand"><span class="mark">N</span><div><b>NutriMind</b><small>NUTRITION INTELLIGENCE</small></div></div>
+      <div class="nav-label">营养管理</div>
       <nav aria-label="主导航">
-        <router-link to="/knowledge"><span class="nav-icon"><el-icon><Collection /></el-icon></span><span>知识库管理</span></router-link>
-        <router-link to="/profile"><span class="nav-icon"><el-icon><User /></el-icon></span><span>账户信息</span></router-link>
+        <router-link to="/knowledge"><span class="nav-icon"><el-icon><Collection /></el-icon></span><span>营养知识库</span></router-link>
+        <router-link to="/profile"><span class="nav-icon"><el-icon><User /></el-icon></span><span>健康账户</span></router-link>
       </nav>
-      <div class="coming"><span class="status-dot"></span><div><b>平台服务正常</b><small>更多智能能力持续接入中</small></div></div>
+      <div class="coming"><span class="status-dot"></span><div><b>营养服务在线</b><small>食物识别与热量估算即将接入</small></div></div>
     </aside>
     <section class="main">
       <header>
-        <div class="header-context"><span>NutriMind 工作台</span><b>{{ currentTitle }}</b></div>
+        <div class="header-context"><span>NutriMind 健康管理</span><b>{{ currentTitle }}</b></div>
         <div class="header-actions">
           <span class="environment"><i></i> 服务在线</span>
           <el-dropdown trigger="click" @command="handleCommand">
-            <button class="user" aria-label="打开用户菜单"><span class="avatar">{{ userStore.username.slice(0, 1).toUpperCase() }}</span><span class="user-copy"><b>{{ userStore.username }}</b><small>已认证用户</small></span><el-icon><ArrowDown /></el-icon></button>
-            <template #dropdown><el-dropdown-menu><el-dropdown-item command="profile"><el-icon><User /></el-icon>账户信息</el-dropdown-item><el-dropdown-item command="logout" divided><el-icon><SwitchButton /></el-icon>退出登录</el-dropdown-item></el-dropdown-menu></template>
+            <button class="user" aria-label="打开用户菜单"><span class="avatar">{{ userStore.username.slice(0, 1).toUpperCase() }}</span><span class="user-copy"><b>{{ userStore.username }}</b><small>健康管理账户</small></span><el-icon><ArrowDown /></el-icon></button>
+            <template #dropdown><el-dropdown-menu><el-dropdown-item command="profile"><el-icon><User /></el-icon>健康账户</el-dropdown-item><el-dropdown-item command="logout" divided><el-icon><SwitchButton /></el-icon>退出登录</el-dropdown-item></el-dropdown-menu></template>
           </el-dropdown>
         </div>
       </header>

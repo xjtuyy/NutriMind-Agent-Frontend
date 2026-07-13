@@ -1,18 +1,18 @@
 <template>
   <div class="page-head">
-    <div><span class="eyebrow">KNOWLEDGE CENTER</span><h1 class="page-title">知识库管理</h1><p class="page-description">维护平台知识资产，为智能分析提供准确、可追溯的信息来源。</p></div>
+    <div><span class="eyebrow">NUTRITION KNOWLEDGE</span><h1 class="page-title">营养知识库</h1><p class="page-description">沉淀可信的饮食与营养资料，为食物分析和健康建议提供专业依据。</p></div>
     <el-button :icon="Refresh" :loading="statsLoading" @click="loadStats">刷新数据</el-button>
   </div>
 
   <section class="overview" aria-label="知识库概览">
-    <article class="metric-card"><span class="metric-icon"><el-icon><Files /></el-icon></span><div><small>文档总数</small><strong>{{ stats.total_documents }}</strong><p>已完成解析的知识文档</p></div></article>
-    <article class="metric-card"><span class="metric-icon chunks"><el-icon><Grid /></el-icon></span><div><small>知识片段</small><strong>{{ stats.total_chunks }}</strong><p>可供语义检索的内容片段</p></div></article>
+    <article class="metric-card"><span class="metric-icon"><el-icon><Files /></el-icon></span><div><small>营养资料</small><strong>{{ stats.total_documents }}</strong><p>已完成解析的专业文档</p></div></article>
+    <article class="metric-card"><span class="metric-icon chunks"><el-icon><Grid /></el-icon></span><div><small>知识片段</small><strong>{{ stats.total_chunks }}</strong><p>可支持营养分析的内容片段</p></div></article>
     <article class="metric-card"><span class="metric-icon formats"><el-icon><Document /></el-icon></span><div><small>支持格式</small><strong>4</strong><p>PDF、MD、TXT 与 TEXT</p></div></article>
   </section>
 
   <div class="grid">
     <section class="panel upload-panel">
-      <div class="section-heading"><div><span class="step">01</span><h2>添加知识文档</h2></div><p>文件上传后，系统将自动解析并生成可检索的知识片段。</p></div>
+      <div class="section-heading"><div><span class="step">01</span><h2>添加营养资料</h2></div><p>上传膳食指南、营养研究等可信资料，系统将自动解析内容。</p></div>
       <el-upload ref="uploadRef" drag :auto-upload="false" :limit="1" :accept="accept" :on-change="onFileChange" :on-remove="onFileRemove" :on-exceed="onFileExceed">
         <el-icon class="upload-icon"><DocumentAdd /></el-icon>
         <div class="upload-copy"><b>拖拽文件到此处上传</b><span>或点击浏览本地文件</span></div>
@@ -22,8 +22,8 @@
     </section>
 
     <section class="panel search-panel">
-      <div class="section-heading"><div><span class="step">02</span><h2>语义检索</h2></div><p>使用自然语言描述问题，系统将按语义相关度返回知识片段。</p></div>
-      <label class="field-label" for="knowledge-query">检索内容</label>
+      <div class="section-heading"><div><span class="step">02</span><h2>查询营养知识</h2></div><p>直接描述你的营养问题，系统将按语义相关度查找专业资料。</p></div>
+      <label class="field-label" for="knowledge-query">你想了解什么？</label>
       <el-input id="knowledge-query" v-model="query" type="textarea" :rows="4" resize="none" maxlength="200" show-word-limit placeholder="例如：成年人每日膳食纤维的建议摄入量是多少？" @keydown.ctrl.enter="search" />
       <div class="search-options"><label>返回结果数量</label><el-select v-model="limit"><el-option v-for="n in [3,5,10]" :key="n" :label="`${n} 条结果`" :value="n" /></el-select><span>Ctrl + Enter 快速检索</span></div>
       <el-button class="search-button" type="primary" :icon="Search" :loading="searching" @click="search">开始语义检索</el-button>
