@@ -1,9 +1,71 @@
 * { box-sizing: border-box; }
-html, body, #app { width: 100%; min-width: 320px; height: 100%; margin: 0; }
-body { font-family: Inter, "Microsoft YaHei", sans-serif; color: $text; background: $bg; }
-button, input { font: inherit; }
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: $text;
+  background: $bg;
+  font-family: Inter, "SF Pro Display", "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea { font: inherit; }
+
 a { color: inherit; text-decoration: none; }
-.page-title { margin: 0; font-size: 26px; }
-.page-description { margin: 8px 0 24px; color: $muted; }
-.panel { padding: 24px; background: #fff; border: 1px solid $border; border-radius: $radius; box-shadow: $shadow; }
-@media (max-width: 720px) { .panel { padding: 16px; } }
+
+h1,
+h2,
+h3,
+p { margin-top: 0; }
+
+.page-title {
+  margin: 0;
+  color: $navy;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+.page-description {
+  margin: 7px 0 0;
+  color: $text-secondary;
+  line-height: 1.6;
+}
+
+.panel {
+  padding: 24px;
+  background: $surface;
+  border: 1px solid $border;
+  border-radius: $radius;
+  box-shadow: $shadow-sm;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #{$primary};
+  --el-button-border-color: #{$primary};
+  --el-button-hover-bg-color: #{$primary-hover};
+  --el-button-hover-border-color: #{$primary-hover};
+  --el-button-active-bg-color: #{$primary-hover};
+  --el-button-active-border-color: #{$primary-hover};
+}
+
+.el-input__wrapper,
+.el-select__wrapper { border-radius: $radius-sm; }
+
+.el-message-box { border-radius: $radius; }
+
+@media (max-width: 720px) {
+  .panel { padding: 18px; }
+  .page-title { font-size: 23px; }
+}

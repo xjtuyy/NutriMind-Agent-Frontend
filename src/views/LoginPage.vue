@@ -1,12 +1,14 @@
 <template>
   <AuthShell>
-    <h2>欢迎回来</h2><p class="hint">登录后管理你的知识库</p>
+    <span class="form-eyebrow">账户登录</span>
+    <h2>欢迎回来</h2><p class="hint">请输入您的账户信息以进入管理平台</p>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
-      <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" placeholder="请输入用户名" /></el-form-item>
-      <el-form-item label="密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password placeholder="至少 6 位" @keyup.enter="submit" /></el-form-item>
-      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">登录</el-button>
+      <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" placeholder="请输入用户名" autocomplete="username" /></el-form-item>
+      <el-form-item label="登录密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password placeholder="请输入登录密码" autocomplete="current-password" @keyup.enter="submit" /></el-form-item>
+      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">进入工作台</el-button>
     </el-form>
-    <p class="switch">还没有账号？<router-link to="/register">立即注册</router-link></p>
+    <div class="divider"><span>首次使用 NutriMind</span></div>
+    <p class="switch">还没有账户？<router-link to="/register">创建账户</router-link></p>
   </AuthShell>
 </template>
 
@@ -33,5 +35,5 @@ async function submit() {
 </script>
 
 <style lang="scss" scoped>
-h2 { margin: 0; font-size: 30px; }.hint { margin: 8px 0 28px; color: $muted; }.submit { width: 100%; margin-top: 8px; background: $primary; border-color: $primary; }.switch { margin: 24px 0 0; text-align: center; color: $muted; }.switch a { margin-left: 5px; color: $primary; font-weight: 600; }
+.form-eyebrow { display: block; margin-bottom: 10px; color: $primary; font-size: 11px; font-weight: 700; letter-spacing: .12em; }.hint { margin: 9px 0 30px; color: $text-secondary; line-height: 1.6; } h2 { margin: 0; color: $navy; font-size: 30px; font-weight: 650; letter-spacing: -.03em; }.submit { width: 100%; height: 44px; margin-top: 8px; font-weight: 600; }.divider { position: relative; margin: 28px 0 20px; color: $muted; font-size: 10px; text-align: center; }.divider::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: $border; }.divider span { position: relative; padding: 0 12px; background: #fff; }.switch { margin: 0; text-align: center; color: $text-secondary; font-size: 12px; }.switch a { margin-left: 6px; color: $primary; font-weight: 650; }
 </style>

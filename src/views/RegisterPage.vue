@@ -1,13 +1,15 @@
 <template>
   <AuthShell>
-    <h2>创建账号</h2><p class="hint">开始建立你的专属知识库</p>
+    <span class="form-eyebrow">账户注册</span>
+    <h2>创建您的账户</h2><p class="hint">完成注册后即可开始管理专业知识资料</p>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
-      <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" /></el-form-item>
-      <el-form-item label="邮箱" prop="email"><el-input v-model="form.email" size="large" /></el-form-item>
-      <el-form-item label="密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password /></el-form-item>
-      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">注册</el-button>
+      <el-form-item label="用户名" prop="username"><el-input v-model="form.username" size="large" placeholder="3–50 个字符" autocomplete="username" /></el-form-item>
+      <el-form-item label="工作邮箱" prop="email"><el-input v-model="form.email" size="large" placeholder="name@example.com" autocomplete="email" /></el-form-item>
+      <el-form-item label="登录密码" prop="password"><el-input v-model="form.password" size="large" type="password" show-password placeholder="至少 6 位" autocomplete="new-password" /></el-form-item>
+      <el-button class="submit" type="primary" size="large" :loading="loading" @click="submit">创建账户</el-button>
     </el-form>
-    <p class="switch">已有账号？<router-link to="/login">返回登录</router-link></p>
+    <p class="agreement">注册即表示您已阅读并同意平台使用规范与隐私政策</p>
+    <p class="switch">已有账户？<router-link to="/login">返回登录</router-link></p>
   </AuthShell>
 </template>
 
@@ -32,5 +34,5 @@ async function submit() {
 </script>
 
 <style lang="scss" scoped>
-h2 { margin: 0; font-size: 30px; }.hint { margin: 8px 0 24px; color: $muted; }.submit { width: 100%; margin-top: 8px; background: $primary; border-color: $primary; }.switch { margin: 24px 0 0; text-align: center; color: $muted; }.switch a { margin-left: 5px; color: $primary; font-weight: 600; }
+.form-eyebrow { display: block; margin-bottom: 10px; color: $primary; font-size: 11px; font-weight: 700; letter-spacing: .12em; }.hint { margin: 9px 0 24px; color: $text-secondary; line-height: 1.6; } h2 { margin: 0; color: $navy; font-size: 29px; font-weight: 650; letter-spacing: -.03em; }.submit { width: 100%; height: 44px; margin-top: 6px; font-weight: 600; }.agreement { margin: 16px 0 22px; color: $muted; font-size: 10px; line-height: 1.6; text-align: center; }.switch { margin: 0; padding-top: 20px; border-top: 1px solid $border; text-align: center; color: $text-secondary; font-size: 12px; }.switch a { margin-left: 6px; color: $primary; font-weight: 650; }
 </style>
