@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+html, body, #app { width: 100%; min-width: 320px; height: 100%; margin: 0; }
+body { font-family: Inter, "Microsoft YaHei", sans-serif; color: $text; background: $bg; }
+button, input { font: inherit; }
+a { color: inherit; text-decoration: none; }
+.page-title { margin: 0; font-size: 26px; }
+.page-description { margin: 8px 0 24px; color: $muted; }
+.panel { padding: 24px; background: #fff; border: 1px solid $border; border-radius: $radius; box-shadow: $shadow; }
+@media (max-width: 720px) { .panel { padding: 16px; } }
