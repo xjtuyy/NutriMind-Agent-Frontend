@@ -1,54 +1,166 @@
 <template>
-  <div class="layout">
-    <aside>
-      <div class="brand"><span class="mark">N</span><div><b>NutriMind</b><small>NUTRITION INTELLIGENCE</small></div></div>
-      <div class="nav-label">营养管理</div>
-      <nav aria-label="主导航">
-        <router-link to="/knowledge"><span class="nav-icon"><el-icon><Collection /></el-icon></span><span>营养知识库</span></router-link>
-        <router-link to="/profile"><span class="nav-icon"><el-icon><User /></el-icon></span><span>健康账户</span></router-link>
+  <div class="app-layout">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <aside class="app-rail" aria-label="主导航">
+      <router-link class="brand" to="/today" aria-label="NutriMind 今日状态">
+        <Lightning :size="23" weight="fill" aria-hidden="true" />
+        <span>NM</span>
+      </router-link>
+
+      <nav>
+        <router-link v-for="item in navItems" :key="item.path" :to="item.path">
+          <component :is="item.icon" :size="22" :weight="route.path === item.path ? 'fill' : 'regular'" aria-hidden="true" />
+          <span>{{ item.label }}</span>
+        </router-link>
       </nav>
-      <div class="coming"><span class="status-dot"></span><div><b>营养服务在线</b><small>食物识别与热量估算即将接入</small></div></div>
+
+      <button class="rail-profile" aria-label="打开个人资料" @click="router.push('/profile')">
+        {{ userInitial }}
+      </button>
     </aside>
-    <section class="main">
-      <header>
-        <div class="header-context"><span>NutriMind 健康管理</span><b>{{ currentTitle }}</b></div>
-        <div class="header-actions">
-          <span class="environment"><i></i> 服务在线</span>
+
+    <section class="app-stage">
+      <header class="topbar">
+        <div class="wordmark">
+          <b>NutriMind</b>
+          <span>{{ route.meta.title }}</span>
+        </div>
+        <div class="top-actions">
+          <span class="service-state"><CloudCheck :size="17" weight="bold" /> {{ userStore.isDemo ? '预览数据' : '服务在线' }}</span>
           <el-dropdown trigger="click" @command="handleCommand">
-            <button class="user" aria-label="打开用户菜单"><span class="avatar">{{ userStore.username.slice(0, 1).toUpperCase() }}</span><span class="user-copy"><b>{{ userStore.username }}</b><small>健康管理账户</small></span><el-icon><ArrowDown /></el-icon></button>
-            <template #dropdown><el-dropdown-menu><el-dropdown-item command="profile"><el-icon><User /></el-icon>健康账户</el-dropdown-item><el-dropdown-item command="logout" divided><el-icon><SwitchButton /></el-icon>退出登录</el-dropdown-item></el-dropdown-menu></template>
+            <button class="account-button" aria-label="打开账户菜单">
+              <span>{{ userInitial }}</span>
+              <div><b>{{ userStore.username }}</b><small>Performance Fuel</small></div>
+              <CaretDown :size="15" weight="bold" />
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile"><UserCircle :size="17" />身体与目标</el-dropdown-item>
+                <el-dropdown-item command="logout" divided><SignOut :size="17" />退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
           </el-dropdown>
         </div>
       </header>
-      <main><router-view /></main>
+
+      <main id="main-content" tabindex="-1">
+        <router-view v-slot="{ Component }">
+          <transition name="page" mode="out-in"><component :is="Component" /></transition>
+        </router-view>
+      </main>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { useRouter } from 'vue-router'
-import { ArrowDown, Collection, SwitchButton, User } from '@element-plus/icons-vue'
+import { computed, markRaw, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
+  PhChartDonut as ChartDonut, PhCloudCheck as CloudCheck, PhLightning as Lightning,
+  PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
+  PhUserCircle as UserCircle,
+} from '@phosphor-icons/vue'
 import { useUserStore } from '@/stores/user'
-const userStore = useUserStore(), router = useRouter(), route = useRoute()
-const currentTitle = computed(() => route.meta.title || '工作台')
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+const navItems = [
+  { path: '/today', label: '今日', icon: markRaw(ChartDonut) },
+  { path: '/coach', label: '教练', icon: markRaw(Sparkle) },
+  { path: '/scan', label: '分析', icon: markRaw(ScanSmiley) },
+  { path: '/library', label: '营养库', icon: markRaw(BookOpenText) },
+  { path: '/profile', label: '目标', icon: markRaw(Barbell) },
+]
+const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
+
 onMounted(() => userStore.refreshUser().catch(() => {}))
+
 async function handleCommand(command) {
   if (command === 'profile') router.push('/profile')
-  if (command === 'logout') { await userStore.logout(); router.push('/login') }
+  if (command === 'logout') {
+    await userStore.logout()
+    router.push('/login')
+  }
 }
 </script>
 
 <style lang="scss" scoped>
-.layout { min-height: 100%; display: flex; }
-aside { position: fixed; inset: 0 auto 0 0; z-index: 20; width: 248px; padding: 28px 18px 20px; display: flex; flex-direction: column; color: #c7d2dc; background: $navy-deep; border-right: 1px solid rgba(255,255,255,.04); }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 36px; color: #fff; }.brand div { display: flex; flex-direction: column; }.brand b { font-size: 17px; letter-spacing: .01em; }.brand small { margin-top: 3px; color: rgba(255,255,255,.42); font-size: 9px; letter-spacing: .16em; }.mark { width: 38px; height: 38px; display: grid; place-items: center; color: $navy-deep; background: #fff; border-radius: 10px; font-size: 19px; font-weight: 800; }
-.nav-label { padding: 0 12px 10px; color: rgba(255,255,255,.34); font-size: 10px; font-weight: 700; letter-spacing: .14em; }
-nav { display: grid; gap: 5px; } nav a { min-height: 46px; padding: 7px 10px; display: flex; gap: 11px; align-items: center; border-radius: 9px; color: #aebdca; font-size: 13px; font-weight: 500; transition: color .18s, background .18s; } nav a:hover { color: #fff; background: rgba(255,255,255,.055); } nav a.router-link-active { color: #fff; background: rgba(22,138,107,.24); box-shadow: inset 3px 0 #39c79e; }.nav-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; font-size: 17px; } nav a.router-link-active .nav-icon { color: #67d6b6; background: rgba(22,138,107,.22); }
-.coming { margin-top: auto; padding: 14px; display: flex; align-items: flex-start; gap: 10px; border-top: 1px solid rgba(255,255,255,.08); }.status-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: #43c59e; box-shadow: 0 0 0 4px rgba(67,197,158,.12); }.coming div { display: flex; flex-direction: column; gap: 4px; }.coming b { color: #dbe5ed; font-size: 11px; font-weight: 600; }.coming small { color: rgba(255,255,255,.38); font-size: 10px; line-height: 1.45; }
-.main { min-width: 0; flex: 1; margin-left: 248px; }.main header { position: sticky; top: 0; z-index: 10; height: 72px; padding: 0 34px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,.95); border-bottom: 1px solid $border; backdrop-filter: blur(10px); }.main main { width: min(1460px, 100%); margin: 0 auto; padding: 32px 34px 44px; }
-.header-context { display: flex; align-items: center; gap: 9px; color: $muted; font-size: 12px; }.header-context span::after { content: "/"; margin-left: 9px; color: $border-strong; }.header-context b { color: $text; font-weight: 600; }.header-actions { display: flex; align-items: center; gap: 24px; }.environment { display: flex; align-items: center; gap: 7px; color: $muted; font-size: 11px; }.environment i { width: 7px; height: 7px; border-radius: 50%; background: #2db487; box-shadow: 0 0 0 3px $primary-soft; }
-.user { padding: 4px 6px; display: flex; align-items: center; gap: 10px; color: $text; background: none; border: 0; border-radius: 9px; cursor: pointer; }.user:hover { background: #f4f7f9; }.avatar { width: 34px; height: 34px; display: grid; place-items: center; color: #fff; background: $navy; border-radius: 9px; font-size: 13px; font-weight: 700; }.user-copy { min-width: 86px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }.user-copy b { max-width: 110px; overflow: hidden; color: $text; font-size: 12px; font-weight: 600; text-overflow: ellipsis; }.user-copy small { color: $muted; font-size: 9px; }
-@media(max-width:760px){ aside { width: 74px; padding: 20px 10px; }.brand { padding: 0 8px 30px; }.brand div,.nav-label,nav a > span:last-child,.coming div { display: none; } nav a { justify-content: center; padding: 7px; } nav a.router-link-active { box-shadow: none; }.coming { justify-content: center; }.main { margin-left: 74px; }.main header { height: 64px; padding: 0 18px; }.main main { padding: 24px 18px 36px; }.header-context span,.environment,.user-copy { display: none; }.header-context span::after { display: none; }.header-actions { gap: 8px; } }
+.app-layout { min-height: 100dvh; display: flex; }
+.app-rail {
+  position: fixed;
+  z-index: var(--z-nav);
+  inset: 18px auto 18px 18px;
+  width: 92px;
+  padding: 12px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(20, 25, 21, .94);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: $shadow;
+  backdrop-filter: blur(18px);
+}
+.brand {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  color: #11160f;
+  background: var(--primary);
+  border-radius: 15px;
+}
+.brand span { font-family: "Barlow Condensed"; font-size: .68rem; font-weight: 700; line-height: 1; }
+.app-rail nav { width: 100%; margin: auto 0; display: grid; gap: 8px; }
+.app-rail nav a {
+  min-height: 58px;
+  padding: 7px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--muted);
+  border-radius: 13px;
+  font-size: .7rem;
+  transition: color 180ms var(--ease-out), background 180ms var(--ease-out), transform 180ms var(--ease-out);
+}
+.app-rail nav a:hover { color: var(--text); background: rgba(255,255,255,.04); transform: translateY(-1px); }
+.app-rail nav a.router-link-active { color: var(--primary); background: var(--primary-soft); }
+.rail-profile { width: 46px; height: 46px; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 600; }
+.app-stage { min-width: 0; flex: 1; margin-left: 128px; }
+.topbar { height: 78px; padding: 0 30px 0 4px; display: flex; align-items: center; justify-content: space-between; }
+.wordmark { display: flex; align-items: baseline; gap: 10px; }
+.wordmark b { font-family: "Barlow Condensed"; font-size: 1.15rem; letter-spacing: .01em; }
+.wordmark span { color: var(--muted); font-size: .78rem; }
+.top-actions { display: flex; align-items: center; gap: 16px; }
+.service-state { min-height: 36px; padding: 0 11px; display: inline-flex; align-items: center; gap: 7px; color: var(--primary); background: var(--primary-soft); border-radius: 8px; font-size: .75rem; }
+.account-button { min-height: 48px; padding: 4px 7px; display: flex; align-items: center; gap: 9px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 11px; }
+.account-button:hover { background: var(--surface); border-color: var(--border); }
+.account-button > span { width: 36px; height: 36px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 9px; font-weight: 700; }
+.account-button div { min-width: 106px; display: grid; gap: 1px; text-align: left; }
+.account-button b { max-width: 130px; overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.account-button small { color: var(--muted); font-size: .66rem; }
+main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: none; }
+.page-enter-active, .page-leave-active { transition: opacity 180ms var(--ease-out), transform 220ms var(--ease-out); }
+.page-enter-from { opacity: 0; transform: translateY(10px); }
+.page-leave-to { opacity: 0; transform: translateY(-6px); }
+
+@media (max-width: 900px) {
+  .app-stage { margin-left: 0; }
+  .app-rail { inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px; width: auto; height: 70px; padding: 7px 10px; flex-direction: row; }
+  .brand, .rail-profile { display: none; }
+  .app-rail nav { margin: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .app-rail nav a { min-height: 54px; min-width: 58px; padding: 5px 9px; font-size: .65rem; }
+  .topbar { padding: 0 18px; }
+  main { padding: 8px 16px 100px; }
+}
+@media (max-width: 620px) {
+  .service-state, .account-button div, .wordmark span { display: none; }
+  .top-actions { gap: 4px; }
+  .app-rail nav a { min-width: 0; padding-inline: 5px; }
+}
 </style>

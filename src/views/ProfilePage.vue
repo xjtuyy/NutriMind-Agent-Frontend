@@ -1,38 +1,265 @@
 <template>
-  <div class="page-head"><div><span class="eyebrow">HEALTH ACCOUNT</span><h1 class="page-title">健康账户</h1><p class="page-description">管理你的基础账户信息，为后续个性化饮食目标做好准备。</p></div><el-tag type="success" effect="light" round>账户状态正常</el-tag></div>
-  <div class="profile-grid">
-    <section class="panel identity">
-      <div class="avatar">{{ userStore.username.slice(0, 1).toUpperCase() }}</div>
-      <h2>{{ userStore.username }}</h2>
-      <p>{{ userStore.user?.email || '未设置邮箱' }}</p>
-      <span class="role">{{ roleText }}</span>
-      <div class="verified"><el-icon><CircleCheckFilled /></el-icon><div><b>身份认证已启用</b><span>当前会话受到安全认证保护</span></div></div>
-    </section>
-    <section class="panel details">
-      <div class="section-heading"><h2>基本资料</h2><span>账户 ID：{{ userStore.user?.id || '--' }}</span></div>
-      <dl v-if="userStore.user">
-        <div><dt>用户名</dt><dd>{{ userStore.user.username }}</dd></div>
-        <div><dt>电子邮箱</dt><dd>{{ userStore.user.email || '未填写' }}</dd></div>
-        <div><dt>手机号码</dt><dd>{{ userStore.user.phone || '未填写' }}</dd></div>
-        <div><dt>账户角色</dt><dd>{{ roleText }}</dd></div>
-        <div><dt>最后登录</dt><dd>{{ formatDate(userStore.user.last_login_at) }}</dd></div>
-        <div><dt>注册时间</dt><dd>{{ formatDate(userStore.user.created_at) }}</dd></div>
-      </dl>
-      <div class="notice"><el-icon><InfoFilled /></el-icon><p><b>资料修改暂未开放</b><span>当前后端仅支持账户信息查询。编辑资料、修改密码等功能将在接口开放后接入。</span></p></div>
+  <div class="profile-page page-shell">
+    <header class="page-header">
+      <div>
+        <span class="eyebrow"><Target :size="16" weight="bold" /> BODY & GOALS</span>
+        <h1 class="page-title">目标不是数字，<br><em>是下一次选择。</em></h1>
+        <p class="page-description">把身体目标和训练节奏交给 NutriMind，后续建议会围绕这套基准展开。</p>
+      </div>
+      <span class="status-chip"><CheckCircle :size="16" weight="fill" /> 配置已同步至本机</span>
+    </header>
+
+    <section class="profile-grid">
+      <aside class="identity-card surface">
+        <div class="identity-top">
+          <div class="avatar" aria-hidden="true">{{ userInitial }}</div>
+          <span class="account-state"><span /> ACTIVE</span>
+        </div>
+        <span class="identity-kicker">ATHLETE PROFILE</span>
+        <h2>{{ userStore.username }}</h2>
+        <p>{{ userStore.user?.email || '未设置邮箱' }}</p>
+        <span class="role">{{ roleText }}</span>
+
+        <div class="goal-readout">
+          <div>
+            <small>当前计划</small>
+            <strong>{{ modeLabel }}</strong>
+          </div>
+          <TrendDown v-if="profile.mode === 'cut'" :size="34" weight="duotone" />
+          <Barbell v-else-if="profile.mode === 'muscle'" :size="34" weight="duotone" />
+          <Heartbeat v-else :size="34" weight="duotone" />
+        </div>
+
+        <div class="weight-progress">
+          <div><span>{{ profile.currentWeight || '--' }} kg</span><span>目标 {{ profile.targetWeight || '--' }} kg</span></div>
+          <div class="progress-track"><i :style="{ width: `${goalProgress}%` }" /></div>
+          <small>计划配置完整度 {{ goalProgress }}%</small>
+        </div>
+
+        <dl>
+          <div><dt><IdentificationCard :size="17" /> 账户 ID</dt><dd>{{ userStore.user?.id || '--' }}</dd></div>
+          <div><dt><Phone :size="17" /> 手机</dt><dd>{{ userStore.user?.phone || '未填写' }}</dd></div>
+          <div><dt><ClockCounterClockwise :size="17" /> 最近登录</dt><dd>{{ formatDate(userStore.user?.last_login_at) }}</dd></div>
+        </dl>
+      </aside>
+
+      <main class="goal-panel surface">
+        <div class="panel-heading">
+          <div>
+            <span>PERSONAL BASELINE</span>
+            <h2 class="section-title">设置你的身体目标</h2>
+          </div>
+          <span class="step-mark">01 / 02</span>
+        </div>
+
+        <section class="form-section" aria-labelledby="goal-mode-title">
+          <div class="section-label">
+            <span>01</span>
+            <div><h3 id="goal-mode-title">你当前最重要的目标</h3><p>它会决定热量和营养建议的侧重点。</p></div>
+          </div>
+          <div class="mode-grid">
+            <button
+              v-for="mode in modes"
+              :key="mode.value"
+              type="button"
+              :class="{ active: profile.mode === mode.value }"
+              :aria-pressed="profile.mode === mode.value"
+              @click="profile.mode = mode.value"
+            >
+              <component :is="mode.icon" :size="24" :weight="profile.mode === mode.value ? 'fill' : 'regular'" />
+              <b>{{ mode.label }}</b>
+              <span>{{ mode.description }}</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="form-section" aria-labelledby="body-data-title">
+          <div class="section-label">
+            <span>02</span>
+            <div><h3 id="body-data-title">身体与补给基准</h3><p>先给出可执行的初始值，后面可以随进度调整。</p></div>
+          </div>
+          <div class="field-grid">
+            <FuelField v-model="profile.currentWeight" label="当前体重（kg）" type="number" min="30" max="250" placeholder="例如 72" />
+            <FuelField v-model="profile.targetWeight" label="目标体重（kg）" type="number" min="30" max="250" placeholder="例如 66" />
+            <FuelField v-model="profile.dailyCalories" label="每日热量目标（kcal）" type="number" min="1000" max="6000" placeholder="例如 1900" />
+            <FuelField v-model="profile.proteinTarget" label="每日蛋白质（g）" type="number" min="30" max="400" placeholder="例如 130" />
+          </div>
+          <label class="training-days">
+            <span><CalendarDots :size="18" /> 每周训练频率</span>
+            <div>
+              <button
+                v-for="day in 7"
+                :key="day"
+                type="button"
+                :class="{ active: Number(profile.trainingDays) === day }"
+                :aria-label="`每周训练 ${day} 天`"
+                :aria-pressed="Number(profile.trainingDays) === day"
+                @click="profile.trainingDays = day"
+              >{{ day }}</button>
+            </div>
+            <small>{{ trainingCopy }}</small>
+          </label>
+        </section>
+
+        <footer class="form-footer">
+          <div class="local-note"><LockKey :size="18" /><span><b>当前为前端本地配置</b>数据只保存在这台设备，不会修改后端账户资料。</span></div>
+          <FuelButton :loading="saving" @click="saveProfile">保存目标配置</FuelButton>
+        </footer>
+      </main>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { CircleCheckFilled, InfoFilled } from '@element-plus/icons-vue'
+import { computed, markRaw, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import {
+  PhBarbell as Barbell, PhCalendarDots as CalendarDots, PhCheckCircle as CheckCircle,
+  PhClockCounterClockwise as ClockCounterClockwise, PhHeartbeat as Heartbeat,
+  PhIdentificationCard as IdentificationCard, PhLockKey as LockKey,
+  PhPersonSimpleRun as PersonSimpleRun, PhPhone as Phone, PhTarget as Target,
+  PhTrendDown as TrendDown,
+} from '@phosphor-icons/vue'
+import FuelButton from '@/components/ui/FuelButton.vue'
+import FuelField from '@/components/ui/FuelField.vue'
 import { useUserStore } from '@/stores/user'
+
+const PROFILE_KEY = 'nutrimind_goal_profile'
+const defaults = {
+  mode: 'cut', currentWeight: 72, targetWeight: 66,
+  dailyCalories: 1900, proteinTarget: 130, trainingDays: 4,
+}
+
+function loadProfile() {
+  try {
+    return { ...defaults, ...JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') }
+  } catch {
+    return { ...defaults }
+  }
+}
+
 const userStore = useUserStore()
+const profile = reactive(loadProfile())
+const saving = ref(false)
+const modes = [
+  { value: 'cut', label: '减脂', description: '控制热量，保住训练表现', icon: markRaw(TrendDown) },
+  { value: 'muscle', label: '增肌', description: '稳定盈余，优先蛋白质', icon: markRaw(Barbell) },
+  { value: 'maintain', label: '保持', description: '维持体态，提高饮食质量', icon: markRaw(PersonSimpleRun) },
+]
+
 const roleText = computed(() => userStore.user?.roles?.join('、') || '普通用户')
-function formatDate(value) { return value ? new Date(value).toLocaleString('zh-CN') : '暂无记录' }
+const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
+const modeLabel = computed(() => modes.find((item) => item.value === profile.mode)?.label || '自定义')
+const goalProgress = computed(() => {
+  const fields = ['mode', 'currentWeight', 'targetWeight', 'dailyCalories', 'proteinTarget', 'trainingDays']
+  return Math.round(fields.filter((key) => Boolean(profile[key])).length / fields.length * 100)
+})
+const trainingCopy = computed(() => {
+  const days = Number(profile.trainingDays)
+  if (days <= 2) return '轻量节奏，优先建立稳定习惯。'
+  if (days <= 4) return '均衡节奏，训练与恢复都有空间。'
+  return '高频节奏，请特别关注睡眠与恢复。'
+})
+
+function formatDate(value) {
+  if (!value) return '暂无记录'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '暂无记录'
+  return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(date)
+}
+
+async function saveProfile() {
+  const required = [profile.currentWeight, profile.targetWeight, profile.dailyCalories, profile.proteinTarget]
+  if (required.some((value) => !value || Number(value) <= 0)) {
+    ElMessage.warning('请填写完整且有效的身体与补给数据')
+    return
+  }
+  saving.value = true
+  await new Promise((resolve) => setTimeout(resolve, 360))
+  localStorage.setItem(PROFILE_KEY, JSON.stringify({ ...profile }))
+  saving.value = false
+  ElMessage.success('目标配置已保存到当前设备')
+}
 </script>
 
 <style lang="scss" scoped>
-.page-head { margin-bottom:24px; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; }.eyebrow { display:block; margin-bottom:8px; color:$primary; font-size:10px; font-weight:750; letter-spacing:.14em; }.profile-grid { max-width:1040px; display:grid; grid-template-columns:300px 1fr; gap:20px; }.identity { align-self:start; padding:34px 24px; text-align:center; }.avatar { width:76px; height:76px; margin:0 auto 16px; display:grid; place-items:center; color:#fff; background:$navy; border-radius:20px; box-shadow:0 0 0 7px #edf2f5; font-size:28px; font-weight:700; }.identity h2 { margin:0; color:$navy; font-size:20px; font-weight:650; }.identity > p { margin:7px 0 13px; color:$muted; font-size:11px; }.role { display:inline-flex; padding:5px 10px; color:$primary; background:$primary-soft; border-radius:20px; font-size:10px; font-weight:650; }.verified { margin-top:30px; padding:16px 0 0; display:flex; gap:10px; align-items:flex-start; border-top:1px solid $border; text-align:left; }.verified>.el-icon { margin-top:2px; color:$primary; font-size:16px; }.verified div { display:grid; gap:4px; }.verified b { color:$text; font-size:10px; }.verified span { color:$muted; font-size:9px; line-height:1.45; }.details { padding:0; overflow:hidden; }.section-heading { height:68px; padding:0 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid $border; }.section-heading h2 { margin:0; color:$navy; font-size:16px; font-weight:650; }.section-heading span { color:$muted; font-size:10px; } dl { margin:0; padding:10px 24px; } dl>div { min-height:52px; display:grid; grid-template-columns:130px 1fr; align-items:center; border-bottom:1px solid #edf1f4; } dl>div:last-child { border-bottom:0; } dt { color:$muted; font-size:10px; } dd { margin:0; color:$text; font-size:12px; font-weight:500; }.notice { margin:8px 24px 24px; padding:14px; display:flex; gap:10px; color:#526b7c; background:#f3f7fa; border:1px solid #e2eaf0; border-radius:9px; }.notice>.el-icon { flex:0 0 auto; margin-top:2px; color:#5b7fa0; }.notice p { margin:0; display:grid; gap:4px; }.notice b { font-size:10px; }.notice span { color:$muted; font-size:9px; line-height:1.5; }
-@media(max-width:850px){.profile-grid{grid-template-columns:1fr}.identity{display:grid;grid-template-columns:auto 1fr;column-gap:18px;text-align:left}.avatar{grid-row:1/4;margin:0}.identity h2{align-self:end}.identity>p{margin:4px 0}.role{justify-self:start}.verified{grid-column:1/-1}} @media(max-width:520px){.page-head{align-items:flex-start;flex-direction:column}.identity{display:block;text-align:center}.avatar{margin:0 auto 16px}.role{display:inline-flex}.section-heading{padding:0 18px}dl{padding:10px 18px}dl>div{grid-template-columns:105px 1fr}.notice{margin:8px 18px 18px}}
+.profile-page { display: grid; gap: 22px; }
+.page-header { min-height: 235px; padding: clamp(26px, 4vw, 56px); display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; background: linear-gradient(110deg, rgba(23,28,24,.98), rgba(15,18,16,.9)), radial-gradient(circle at 83% 18%, rgba(242,117,63,.17), transparent 34%); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.page-header em { color: var(--accent); font-style: normal; }
+.eyebrow { margin-bottom: 17px; display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: .74rem; font-weight: 700; letter-spacing: .13em; }
+.profile-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
+.identity-card { padding: 24px; }
+.identity-top { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
+.avatar { width: 76px; height: 76px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
+.account-state { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
+.account-state span { width: 7px; height: 7px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 0 4px rgba(159,226,75,.09); }
+.identity-kicker { color: var(--muted); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.identity-card h2 { margin: 5px 0 2px; overflow-wrap: anywhere; font-family: "Barlow Condensed"; font-size: 1.85rem; font-weight: 600; line-height: 1; }
+.identity-card > p { margin: 7px 0 12px; overflow: hidden; color: var(--muted); font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.role { padding: 5px 8px; display: inline-flex; color: var(--text-secondary); background: var(--surface-soft); border-radius: 6px; font-size: .68rem; }
+.goal-readout { margin: 28px 0 21px; padding: 17px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(130deg, rgba(159,226,75,.12), rgba(159,226,75,.025)); border: 1px solid rgba(159,226,75,.18); border-radius: 12px; }
+.goal-readout div { display: grid; gap: 2px; }
+.goal-readout small { color: var(--muted); }
+.goal-readout strong { font-family: "Barlow Condensed"; font-size: 1.45rem; font-weight: 600; }
+.goal-readout svg { color: var(--primary); }
+.weight-progress > div:first-child { display: flex; justify-content: space-between; color: var(--text-secondary); font-size: .75rem; }
+.progress-track { height: 6px; margin: 9px 0 8px; overflow: hidden; background: var(--surface-soft); border-radius: 6px; }
+.progress-track i { height: 100%; display: block; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: inherit; }
+.weight-progress small { color: var(--muted); font-size: .67rem; }
+.identity-card dl { margin: 25px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.identity-card dl > div { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); }
+.identity-card dl > div:last-child { border-bottom: 0; }
+.identity-card dt { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
+.identity-card dd { margin: 0; max-width: 48%; overflow: hidden; color: var(--text-secondary); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+.goal-panel { padding: clamp(20px, 3vw, 34px); }
+.panel-heading { margin-bottom: 5px; padding-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.step-mark { color: var(--muted); font-family: "Barlow Condensed"; font-size: 1rem; }
+.form-section { padding: 26px 0; border-bottom: 1px solid var(--border); }
+.section-label { margin-bottom: 18px; display: flex; gap: 13px; }
+.section-label > span { width: 29px; height: 29px; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 8px; font-family: "Barlow Condensed"; font-weight: 700; }
+.section-label h3 { margin: 0; font-size: .96rem; }
+.section-label p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; }
+.mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mode-grid button { min-height: 125px; padding: 17px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; color: var(--text-secondary); text-align: left; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 12px; transition: transform 180ms var(--ease-out), border-color 180ms var(--ease-out), background 180ms var(--ease-out); }
+.mode-grid button:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.mode-grid button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.42); box-shadow: inset 0 -3px 0 var(--primary); }
+.mode-grid button b { color: var(--text); }
+.mode-grid button span { color: var(--muted); font-size: .7rem; line-height: 1.45; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+.training-days { margin-top: 22px; display: grid; gap: 10px; }
+.training-days > span { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .84rem; font-weight: 500; }
+.training-days > span svg { color: var(--primary); }
+.training-days > div { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.training-days button { min-height: 42px; color: var(--text-secondary); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 9px; }
+.training-days button:hover { border-color: var(--border-strong); }
+.training-days button.active { color: #11160f; background: var(--primary); border-color: var(--primary); font-weight: 700; }
+.training-days small { color: var(--muted); font-size: .72rem; }
+.form-footer { padding-top: 23px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.local-note { max-width: 440px; display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.local-note svg { flex: 0 0 auto; color: var(--primary); }
+.local-note b { display: block; color: var(--text-secondary); }
+@media (max-width: 1040px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .identity-card { display: grid; grid-template-columns: auto 1fr; column-gap: 24px; }
+  .identity-top { grid-row: 1 / 5; display: block; }
+  .account-state { margin-top: 16px; display: flex; }
+  .goal-readout, .weight-progress, .identity-card dl { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .page-header { min-height: 210px; align-items: flex-start; }
+  .page-header .status-chip { display: none; }
+  .mode-grid { grid-template-columns: 1fr; }
+  .mode-grid button { min-height: 88px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; }
+  .mode-grid button svg { grid-row: 1 / 3; }
+  .field-grid { grid-template-columns: 1fr; }
+  .form-footer { align-items: stretch; flex-direction: column; }
+  .form-footer .fuel-button { width: 100%; }
+}
+@media (max-width: 460px) {
+  .identity-card { display: block; }
+  .identity-top { display: flex; }
+  .account-state { margin-top: 0; }
+  .training-days > div { gap: 5px; }
+}
 </style>

@@ -1,10 +1,13 @@
 import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import 'element-plus/dist/index.css'
+import '@fontsource/barlow/400.css'
+import '@fontsource/barlow/500.css'
+import '@fontsource/barlow/600.css'
+import '@fontsource/barlow-condensed/500.css'
+import '@fontsource/barlow-condensed/600.css'
+import '@fontsource/barlow-condensed/700.css'
 import '@/assets/styles/global.scss'
 import App from './App.vue'
 import router from './router'
 import pinia from './stores'
 
-createApp(App).use(pinia).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')
+createApp(App).use(pinia).use(router).mount('#app')
