@@ -310,14 +310,14 @@ async function changePassword() {
 .profile-tabs button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.2); }
 .profile-tabs button > span { display: grid; gap: 2px; }
 .profile-tabs b { color: var(--text); font-size: .82rem; }
-.profile-tabs small { color: var(--muted); font-size: .68rem; }
+.profile-tabs small { color: var(--muted); font-size: .72rem; }
 .tab-panel { grid-column: 2; animation: tab-in 220ms var(--ease-out); }
 @keyframes tab-in { from { opacity: 0; transform: translateY(7px); } }
 .identity-top { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
 .avatar { width: 76px; height: 76px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
-.account-state { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
+.account-state { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
 .account-state span { width: 7px; height: 7px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 0 4px rgba(159,226,75,.09); }
-.identity-kicker { color: var(--muted); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.identity-kicker { color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
 .identity-card h2 { margin: 5px 0 2px; overflow-wrap: anywhere; font-family: "Barlow Condensed"; font-size: 1.85rem; font-weight: 600; line-height: 1; }
 .identity-card > p { margin: 7px 0 12px; overflow: hidden; color: var(--muted); font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
 .role { padding: 5px 8px; display: inline-flex; color: var(--text-secondary); background: var(--surface-soft); border-radius: 6px; font-size: .68rem; }
@@ -339,13 +339,13 @@ async function changePassword() {
 .security-panel { padding: clamp(20px, 3vw, 30px); }
 .security-heading { margin-bottom: 22px; display: flex; align-items: flex-start; gap: 14px; }
 .security-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 11px; }
-.security-heading > div:last-child > span { display: block; margin-bottom: 4px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.security-heading > div:last-child > span { display: block; margin-bottom: 4px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
 .security-heading p { margin: 6px 0 0; color: var(--muted); font-size: .76rem; }
 .security-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .security-footer { padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--border); }
 .security-footer p { margin: 0; color: var(--muted); font-size: .72rem; }
 .panel-heading { margin-bottom: 5px; padding-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--border); }
-.panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
 .step-mark { color: var(--muted); font-family: "Barlow Condensed"; font-size: 1rem; }
 .form-section { padding: 26px 0; border-bottom: 1px solid var(--border); }
 .section-label { margin-bottom: 18px; display: flex; gap: 13px; }

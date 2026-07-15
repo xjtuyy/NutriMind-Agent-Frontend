@@ -44,6 +44,6 @@ defineEmits(['update:modelValue'])
   transition: border-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out), transform 220ms var(--ease-out);
 }
 .fuel-field input:focus { border-color: var(--primary); box-shadow: 4px 4px 0 rgba(159, 226, 75, .2); transform: translate(-1px, -1px); }
-.fuel-field input::placeholder { color: #737d74; }
+.fuel-field input::placeholder { color: var(--muted); }
 .fuel-field small { color: var(--muted); font-size: .75rem; font-weight: 400; }
 </style>

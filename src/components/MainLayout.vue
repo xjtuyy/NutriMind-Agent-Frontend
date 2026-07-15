@@ -220,7 +220,7 @@ async function handleCommand(command) {
 .account-button > span { width: 36px; height: 36px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 9px; font-weight: 700; }
 .account-button div { min-width: 106px; display: grid; gap: 1px; text-align: left; }
 .account-button b { max-width: 130px; overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
-.account-button small { color: var(--muted); font-size: .66rem; }
+.account-button small { color: var(--muted); font-size: .7rem; }
 main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: none; }
 .page-enter-active, .page-leave-active { transition: opacity 180ms var(--ease-out), transform 220ms var(--ease-out); }
 .page-enter-from { opacity: 0; transform: translateY(10px); }

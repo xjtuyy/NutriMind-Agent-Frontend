@@ -211,12 +211,12 @@ onBeforeUnmount(() => window.clearTimeout(responseTimer))
 .quick-grid button > svg { color: var(--primary); }
 .quick-grid button span { display: grid; gap: 4px; }
 .quick-grid b { font-size: .85rem; }
-.quick-grid small { color: var(--muted); font-size: .7rem; line-height: 1.45; }
+.quick-grid small { color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .message { max-width: 820px; margin: 0 auto 26px; display: flex; gap: 12px; }
 .message.user { justify-content: flex-end; }
 .message-avatar { flex: 0 0 auto; width: 36px; height: 36px; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 10px; }
 .message-body { max-width: min(680px, 85%); }
-.message-body > small { margin-bottom: 6px; display: block; color: var(--muted); font-size: .68rem; }
+.message-body > small { margin-bottom: 6px; display: block; color: var(--muted); font-size: .72rem; }
 .user .message-body > small { text-align: right; }
 .markdown { padding: 14px 17px; color: var(--text-secondary); background: var(--surface-raised); border: 1px solid var(--border); border-radius: 5px 15px 15px 15px; line-height: 1.7; }
 .user .markdown { color: #151b12; background: var(--primary); border-color: var(--primary); border-radius: 15px 5px 15px 15px; }
@@ -225,7 +225,7 @@ onBeforeUnmount(() => window.clearTimeout(responseTimer))
 .answer-card { margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 10px; }
 .answer-card div { padding: 12px; display: grid; gap: 4px; border-right: 1px solid var(--border); }
 .answer-card div:last-child { border-right: 0; }
-.answer-card span { color: var(--muted); font-size: .67rem; }
+.answer-card span { color: var(--muted); font-size: .7rem; }
 .answer-card strong { color: var(--primary); font-size: 1.25rem; font-weight: 500; }
 .typing { min-width: 220px; padding: 16px; display: flex; align-items: center; gap: 5px; color: var(--muted); background: var(--surface-raised); border-radius: 5px 15px 15px 15px; font-size: .72rem; }
 .typing i { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; animation: pulse 900ms ease-in-out infinite alternate; }
@@ -234,12 +234,12 @@ onBeforeUnmount(() => window.clearTimeout(responseTimer))
 .composer-wrap { flex: 0 0 auto; padding: 12px 22px 16px; border-top: 1px solid var(--border); }
 .composer { padding: 11px; background: var(--canvas-soft); border: 1px solid var(--border-strong); border-radius: 14px; }
 .composer textarea { width: 100%; height: 52px; min-height: 52px; max-height: 130px; padding: 8px; overflow-y: auto; color: var(--text); background: transparent; border: 0; outline: 0; resize: none; line-height: 1.55; }
-.composer textarea::placeholder { color: #737d74; }
+.composer textarea::placeholder { color: var(--muted); }
 .composer-footer { display: flex; align-items: center; gap: 10px; }
 .attach { width: 44px; height: 44px; display: grid; place-items: center; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
 .composer-footer > span { color: var(--muted); font-size: .68rem; }
 .send-button { min-height: 44px; margin-left: auto; }
-.disclaimer { margin: 9px 0 0; display: block; color: var(--muted); font-size: .65rem; text-align: center; }
+.disclaimer { margin: 9px 0 0; display: block; color: var(--muted); font-size: .7rem; text-align: center; }
 .spin { animation: spin 800ms linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 .context-panel { min-height: 0; padding: 24px; overflow-y: auto; background: rgba(13,16,15,.55); border-left: 1px solid var(--border); }
 .context-title { display: flex; align-items: center; justify-content: space-between; color: var(--primary); font-size: .8rem; font-weight: 600; }

@@ -275,14 +275,14 @@ onMounted(loadStats)
 .command-index.small { font-size: 1.25rem; }
 .command-content { min-width: 0; }
 .command-heading { margin-bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
-.command-heading > div > span { display: block; margin-bottom: 4px; color: var(--muted); font-size: .68rem; font-weight: 600; letter-spacing: .13em; }
+.command-heading > div > span { display: block; margin-bottom: 4px; color: var(--muted); font-size: .7rem; font-weight: 600; letter-spacing: .13em; }
 .result-limit { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: .72rem; }
 .result-limit select { height: 36px; padding: 0 28px 0 10px; color: var(--text); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 8px; }
 .query-box { min-height: 90px; padding: 13px 13px 13px 17px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 13px; background: var(--canvas-soft); border: 1px solid var(--border-strong); border-radius: 14px; transition: border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
 .query-box:focus-within { border-color: rgba(159,226,75,.65); box-shadow: 0 0 0 3px rgba(159,226,75,.08); }
 .query-box > svg { color: var(--primary); }
 .query-box textarea { width: 100%; min-height: 58px; padding: 7px 0; resize: none; color: var(--text); background: transparent; border: 0; outline: 0; line-height: 1.55; }
-.query-box textarea::placeholder { color: #747e75; }
+.query-box textarea::placeholder { color: var(--muted); }
 .search-action { min-width: 132px; }
 .quick-queries { margin-top: 13px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .quick-queries > span { color: var(--muted); font-size: .72rem; }
@@ -300,7 +300,7 @@ onMounted(loadStats)
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .65fr); gap: 16px; align-items: start; }
 .results-panel, .upload-panel { padding: clamp(18px, 2.5vw, 28px); }
 .panel-heading { margin-bottom: 22px; padding-bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); }
-.panel-kicker { display: block; margin-bottom: 5px; color: var(--muted); font-size: .65rem; }
+.panel-kicker { display: block; margin-bottom: 5px; color: var(--muted); font-size: .7rem; }
 .empty-state { min-height: 300px; display: grid; place-items: center; align-content: center; text-align: center; }
 .empty-state svg { margin-bottom: 14px; color: var(--muted); }
 .empty-state h3 { margin: 0 0 7px; font-size: 1rem; }
