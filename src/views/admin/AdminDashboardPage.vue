@@ -1,5 +1,27 @@
 <template>
   <div class="page-shell admin-dashboard">
+    <section v-if="isPreviewMode" class="preview-console surface" aria-labelledby="preview-console-title">
+      <div class="preview-console-copy">
+        <Flask :size="22" weight="duotone" />
+        <span>
+          <b id="preview-console-title">管理员界面预览</b>
+          <small>当前为本地演示数据，不会请求后端，也不代表真实系统状态。</small>
+        </span>
+      </div>
+      <div class="preview-state-switch" role="group" aria-label="切换看板预览状态">
+        <button
+          v-for="item in previewStates"
+          :key="item.value"
+          type="button"
+          :class="{ active: previewState === item.value }"
+          :aria-pressed="previewState === item.value"
+          @click="setPreviewState(item.value)"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+    </section>
+
     <header class="page-head">
       <div>
         <span class="status-chip"><Gauge :size="16" weight="bold" /> Dashboard API</span>
@@ -31,11 +53,21 @@
       <WarningCircle :size="38" weight="duotone" />
       <h2>系统看板暂时无法加载</h2>
       <p>{{ loadError }}</p>
-      <button type="button" @click="loadDashboard">重新加载</button>
+      <button type="button" @click="isPreviewMode ? setPreviewState('data') : loadDashboard()">
+        {{ isPreviewMode ? '查看正常数据' : '重新加载' }}
+      </button>
     </section>
 
     <template v-else-if="dashboard">
       <p class="refresh-time" aria-live="polite">{{ refreshLabel }}</p>
+
+      <section v-if="isDashboardEmpty" class="empty-notice surface" role="status">
+        <Info :size="24" weight="duotone" />
+        <div>
+          <b>当前没有业务数据</b>
+          <p>页面结构保持可见，所有统计指标均显示为 0。</p>
+        </div>
+      </section>
 
       <section class="overview-grid" aria-label="系统总览数据">
         <article v-for="item in overviewMetrics" :key="item.key" class="metric-card surface">
@@ -128,19 +160,30 @@ import { computed, markRaw, onMounted, ref } from 'vue'
 import {
   PhArrowsClockwise as ArrowsClockwise, PhCheckCircle as CheckCircle,
   PhCircleNotch as CircleNotch, PhCpu as Cpu,
-  PhForkKnife as ForkKnife, PhGauge as Gauge,
+  PhFlask as Flask, PhForkKnife as ForkKnife, PhGauge as Gauge, PhInfo as Info,
   PhListChecks as ListChecks, PhPulse as Pulse,
   PhStack as Stack, PhTarget as Target, PhTimer as Timer, PhUserCheck as UserCheck,
   PhUserGear as UserGear, PhUsers as Users, PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
 import CountUp from '@/components/motion/CountUp.vue'
 import { getDashboardStatsApi } from '@/api/dashboard'
+import { useUserStore } from '@/stores/user'
 import { normalizeDashboardStats } from '@/utils/dashboardData'
 
+const userStore = useUserStore()
 const dashboard = ref(null)
 const loading = ref(false)
 const loadError = ref('')
 const refreshedAt = ref(null)
+const previewState = ref('data')
+const previewStates = [
+  { value: 'data', label: '正常数据' },
+  { value: 'empty', label: '空数据' },
+  { value: 'loading', label: '加载中' },
+  { value: 'error', label: '接口异常' },
+]
+let previewLoadId = 0
+const isPreviewMode = computed(() => userStore.isAdminPreview)
 
 const overviewMetrics = computed(() => dashboard.value ? [
   { key: 'users', label: '用户总数', hint: '系统注册账户', value: dashboard.value.overview.total_users, icon: markRaw(Users) },
@@ -178,6 +221,13 @@ const refreshLabel = computed(() => {
   return `数据刷新于 ${new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(refreshedAt.value)}`
 })
 
+const isDashboardEmpty = computed(() => dashboard.value && [
+  dashboard.value.overview.total_users,
+  dashboard.value.overview.total_detection_tasks,
+  dashboard.value.overview.total_training_tasks,
+  dashboard.value.overview.total_food_items,
+].every((value) => value === 0))
+
 function hasMetric(value) {
   return Number.isFinite(value)
 }
@@ -196,6 +246,10 @@ function statusWidth(value, total) {
 }
 
 async function loadDashboard() {
+  if (isPreviewMode.value) {
+    await applyPreviewState()
+    return
+  }
   loading.value = true
   loadError.value = ''
   try {
@@ -208,11 +262,48 @@ async function loadDashboard() {
   }
 }
 
+async function applyPreviewState() {
+  if (!import.meta.env.DEV) return
+  const loadId = ++previewLoadId
+  loading.value = false
+  loadError.value = ''
+  dashboard.value = null
+
+  if (previewState.value === 'loading') {
+    loading.value = true
+    return
+  }
+  if (previewState.value === 'error') {
+    loadError.value = '这是用于审查错误反馈的演示状态。你可以切换其他状态继续检查页面。'
+    return
+  }
+
+  const { dashboardPreviewStats, emptyDashboardPreviewStats } = await import('@/mocks/dashboardPreview')
+  if (loadId !== previewLoadId) return
+  const payload = previewState.value === 'empty' ? emptyDashboardPreviewStats : dashboardPreviewStats
+  dashboard.value = normalizeDashboardStats(payload)
+  refreshedAt.value = new Date()
+}
+
+function setPreviewState(state) {
+  previewState.value = state
+  applyPreviewState()
+}
+
 onMounted(loadDashboard)
 </script>
 
 <style lang="scss" scoped>
 .admin-dashboard { padding-bottom: 36px; }
+.preview-console { margin-bottom: 18px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-color: rgba(159, 226, 75, .24); }
+.preview-console-copy { display: flex; align-items: center; gap: 10px; color: var(--primary); }
+.preview-console-copy span { display: grid; gap: 2px; }
+.preview-console-copy b { color: var(--text); font-size: .8rem; }
+.preview-console-copy small { color: var(--muted); font-size: .7rem; line-height: 1.45; }
+.preview-state-switch { padding: 4px; display: flex; gap: 4px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 10px; }
+.preview-state-switch button { min-height: 44px; padding: 0 11px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 7px; font-size: .72rem; font-weight: 600; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.preview-state-switch button:hover { color: var(--text-secondary); }
+.preview-state-switch button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159, 226, 75, .2); }
 .page-head { margin-bottom: 22px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
 .page-head .status-chip { margin-bottom: 15px; }
 .refresh-action, .error-state button { min-height: 46px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: #11160f; background: var(--primary); border: 1px solid var(--primary); border-radius: 10px; font-weight: 600; transition: background 180ms var(--ease-out), transform 180ms var(--ease-out); }
@@ -220,6 +311,10 @@ onMounted(loadDashboard)
 .refresh-action:active:not(:disabled), .error-state button:active { transform: scale(.98); }
 .refresh-action:disabled { opacity: .55; }
 .refresh-time { margin: 0 0 10px; color: var(--muted); font-size: .72rem; text-align: right; }
+.empty-notice { margin-bottom: 12px; padding: 15px 17px; display: flex; align-items: center; gap: 12px; color: var(--primary); }
+.empty-notice div { display: grid; gap: 2px; }
+.empty-notice b { color: var(--text); font-size: .82rem; }
+.empty-notice p { margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .overview-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .metric-card { min-height: 154px; padding: 17px; display: flex; flex-direction: column; }
 .metric-icon { width: 38px; height: 38px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 10px; }
@@ -276,7 +371,7 @@ onMounted(loadDashboard)
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton, .spin { animation: none; }
-  .bar-track i, .refresh-action, .error-state button { transition: none; }
+  .bar-track i, .refresh-action, .error-state button, .preview-state-switch button { transition: none; }
 }
 
 @media (max-width: 1180px) {
@@ -284,6 +379,8 @@ onMounted(loadDashboard)
 }
 
 @media (max-width: 820px) {
+  .preview-console { align-items: stretch; flex-direction: column; }
+  .preview-state-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .page-head { align-items: flex-start; flex-direction: column; }
   .refresh-action { width: 100%; }
   .operations-grid { grid-template-columns: 1fr; }
@@ -291,6 +388,8 @@ onMounted(loadDashboard)
 }
 
 @media (max-width: 560px) {
+  .preview-state-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .preview-state-switch button { min-height: 44px; }
   .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-card { min-height: 142px; padding: 14px; }
   .status-panel, .users-panel { padding: 18px 14px; }

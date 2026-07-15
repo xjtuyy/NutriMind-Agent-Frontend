@@ -11,7 +11,10 @@
       <router-link class="brand" to="/login"><Lightning :size="22" weight="fill" /> NutriMind</router-link>
       <div class="manifesto">
         <span class="status-chip">Performance Fuel</span>
-        <h1>练得更强，<br />也要吃得更好。</h1>
+        <h1>
+          <span>练得更强，</span>
+          <span>也要吃得更好。</span>
+        </h1>
         <p>把减脂目标、训练安排和每一餐放到同一个计划里。</p>
       </div>
       <div class="fuel-preview surface">
@@ -40,8 +43,9 @@ import { PhLightning as Lightning, PhLockKey as LockKey } from '@phosphor-icons/
 .brand, .manifesto, .fuel-preview { position: relative; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-family: "Barlow Condensed"; font-size: 1.25rem; font-weight: 700; }
 .brand :deep(svg) { color: var(--primary); }
-.manifesto { width: min(620px, 100%); margin: auto 0; }
-.manifesto h1 { margin: 26px 0 18px; font-family: "Barlow Condensed", MiSans, sans-serif; font-size: clamp(4rem, 7.5vw, 7.7rem); font-weight: 600; line-height: .82; letter-spacing: -.035em; }
+.manifesto { width: min(760px, 100%); margin: auto 0; }
+.manifesto h1 { margin: 26px 0 22px; font-family: MiSans, "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif; font-size: clamp(3.5rem, 6vw, 6.4rem); font-weight: 700; line-height: 1.02; letter-spacing: -.012em; }
+.manifesto h1 span { display: block; white-space: nowrap; }
 .manifesto p { max-width: 34ch; margin: 0; color: #d1d9cf; font-size: clamp(1rem, 1.4vw, 1.25rem); line-height: 1.65; }
 .fuel-preview { width: min(420px, 100%); padding: 16px 18px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px 22px; background: rgba(14,18,15,.82); backdrop-filter: blur(12px); }
 .fuel-preview div { grid-column: 1 / -1; display: flex; align-items: end; justify-content: space-between; }

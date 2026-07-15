@@ -17,6 +17,7 @@ export const useUserStore = defineStore('user', {
     isLoggedIn: (state) => Boolean(state.user),
     username: (state) => state.user?.username || '',
     isDemo: (state) => Boolean(state.user?.is_demo),
+    isAdminPreview: (state) => import.meta.env.DEV && Boolean(state.user?.is_demo && state.user?.is_superuser),
     isAdmin: (state) => isAdminUser(state.user),
     roleResolved: (state) => isUserRoleResolved(state.user),
     defaultRoute: (state) => getDefaultRouteForUser(state.user),
@@ -40,17 +41,19 @@ export const useUserStore = defineStore('user', {
       const user = await getCurrentUserApi()
       this.saveUser(user)
     },
-    enterDemo() {
+    enterDemo(mode = 'user') {
       if (!import.meta.env.DEV) return
+      const isAdminPreview = mode === 'admin'
       this.saveUser({
-        id: 10001,
-        username: 'NutriMind 体验用户',
-        email: 'demo@nutrimind.local',
+        id: isAdminPreview ? 10000 : 10001,
+        username: isAdminPreview ? 'NutriMind 管理员预览' : 'NutriMind 体验用户',
+        email: isAdminPreview ? 'admin-preview@nutrimind.local' : 'demo@nutrimind.local',
         phone: null,
-        roles: ['体验用户'],
+        roles: [isAdminPreview ? 'admin' : '体验用户'],
         is_active: true,
-        is_superuser: false,
+        is_superuser: isAdminPreview,
         is_demo: true,
+        demo_mode: isAdminPreview ? 'admin' : 'user',
         created_at: new Date().toISOString(),
         last_login_at: new Date().toISOString(),
       })
