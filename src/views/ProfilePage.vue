@@ -43,7 +43,40 @@
         </dl>
       </aside>
 
-      <main class="goal-panel surface">
+      <nav class="profile-tabs surface" role="tablist" aria-label="个人资料设置">
+        <button
+          id="goals-tab"
+          type="button"
+          role="tab"
+          :class="{ active: activeTab === 'goals' }"
+          :aria-selected="activeTab === 'goals'"
+          aria-controls="goals-panel"
+          @click="activeTab = 'goals'"
+        >
+          <Target :size="19" :weight="activeTab === 'goals' ? 'fill' : 'regular'" />
+          <span><b>身体目标</b><small>体重、热量与训练节奏</small></span>
+        </button>
+        <button
+          id="security-tab"
+          type="button"
+          role="tab"
+          :class="{ active: activeTab === 'security' }"
+          :aria-selected="activeTab === 'security'"
+          aria-controls="security-panel"
+          @click="activeTab = 'security'"
+        >
+          <LockKey :size="19" :weight="activeTab === 'security' ? 'fill' : 'regular'" />
+          <span><b>账户安全</b><small>修改你的登录密码</small></span>
+        </button>
+      </nav>
+
+      <section
+        v-if="activeTab === 'goals'"
+        id="goals-panel"
+        class="goal-panel surface tab-panel"
+        role="tabpanel"
+        aria-labelledby="goals-tab"
+      >
         <div class="panel-heading">
           <div>
             <span>PERSONAL BASELINE</span>
@@ -105,9 +138,15 @@
           <div class="local-note"><LockKey :size="18" /><span><b>当前为前端本地配置</b>数据只保存在这台设备，不会修改后端账户资料。</span></div>
           <FuelButton :loading="saving" @click="saveProfile">保存目标配置</FuelButton>
         </footer>
-      </main>
+      </section>
 
-      <section class="security-panel surface" aria-labelledby="security-title">
+      <section
+        v-else
+        id="security-panel"
+        class="security-panel surface tab-panel"
+        role="tabpanel"
+        aria-labelledby="security-tab"
+      >
         <div class="security-heading">
           <div class="security-icon"><LockKey :size="22" weight="bold" /></div>
           <div>
@@ -176,6 +215,7 @@ function loadProfile() {
 
 const userStore = useUserStore()
 const profile = reactive(loadProfile())
+const activeTab = ref('goals')
 const saving = ref(false)
 const passwordSaving = ref(false)
 const passwordFormRef = ref()
@@ -263,7 +303,16 @@ async function changePassword() {
 .page-header em { color: var(--accent); font-style: normal; }
 .eyebrow { margin-bottom: 17px; display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: .74rem; font-weight: 700; letter-spacing: .13em; }
 .profile-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
-.identity-card { padding: 24px; }
+.identity-card { grid-row: 1 / span 2; padding: 24px; }
+.profile-tabs { grid-column: 2; padding: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.profile-tabs button { min-height: 64px; padding: 10px 14px; display: flex; align-items: center; gap: 11px; color: var(--muted); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 11px; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.profile-tabs button:hover { color: var(--text-secondary); background: rgba(255,255,255,.025); }
+.profile-tabs button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.2); }
+.profile-tabs button > span { display: grid; gap: 2px; }
+.profile-tabs b { color: var(--text); font-size: .82rem; }
+.profile-tabs small { color: var(--muted); font-size: .68rem; }
+.tab-panel { grid-column: 2; animation: tab-in 220ms var(--ease-out); }
+@keyframes tab-in { from { opacity: 0; transform: translateY(7px); } }
 .identity-top { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
 .avatar { width: 76px; height: 76px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
 .account-state { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
@@ -287,7 +336,7 @@ async function changePassword() {
 .identity-card dt { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
 .identity-card dd { margin: 0; max-width: 48%; overflow: hidden; color: var(--text-secondary); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
 .goal-panel { padding: clamp(20px, 3vw, 34px); }
-.security-panel { grid-column: 2; padding: clamp(20px, 3vw, 30px); }
+.security-panel { padding: clamp(20px, 3vw, 30px); }
 .security-heading { margin-bottom: 22px; display: flex; align-items: flex-start; gap: 14px; }
 .security-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 11px; }
 .security-heading > div:last-child > span { display: block; margin-bottom: 4px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
@@ -324,7 +373,8 @@ async function changePassword() {
 .local-note b { display: block; color: var(--text-secondary); }
 @media (max-width: 1040px) {
   .profile-grid { grid-template-columns: 1fr; }
-  .security-panel { grid-column: 1; }
+  .identity-card { grid-row: auto; }
+  .profile-tabs, .tab-panel { grid-column: 1; }
   .identity-card { display: grid; grid-template-columns: auto 1fr; column-gap: 24px; }
   .identity-top { grid-row: 1 / 5; display: block; }
   .account-state { margin-top: 16px; display: flex; }
@@ -333,6 +383,8 @@ async function changePassword() {
 @media (max-width: 700px) {
   .page-header { min-height: 210px; align-items: flex-start; }
   .page-header .status-chip { display: none; }
+  .profile-tabs button { justify-content: center; text-align: center; }
+  .profile-tabs small { display: none; }
   .mode-grid { grid-template-columns: 1fr; }
   .mode-grid button { min-height: 88px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; }
   .mode-grid button svg { grid-row: 1 / 3; }
