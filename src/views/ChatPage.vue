@@ -63,7 +63,7 @@
               @keydown.enter.exact.prevent="sendMessage"
             />
             <div class="composer-footer">
-              <button class="attach" aria-label="上传食物图片" @click="router.push('/scan')"><Camera :size="20" /></button>
+              <button class="attach" aria-label="上传食物图片" @click="router.push('/app/scan')"><Camera :size="20" /></button>
               <span>Enter 发送，Shift + Enter 换行</span>
               <FuelButton class="send-button" :arrow="false" :disabled="!question.trim() || generating" @click="sendMessage">
                 <CircleNotch v-if="generating" class="spin" :size="19" weight="bold" />

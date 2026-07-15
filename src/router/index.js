@@ -9,28 +9,56 @@ const router = createRouter({
     { path: '/login', name: 'login', component: () => import('@/views/LoginPage.vue'), meta: { public: true, title: '登录' } },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterPage.vue'), meta: { public: true, title: '注册' } },
     {
-      path: '/',
-      component: () => import('@/components/MainLayout.vue'),
-      redirect: '/today',
+      path: '/app',
+      component: () => import('@/layouts/UserLayout.vue'),
+      redirect: '/app/coach',
+      meta: { userOnly: true },
       children: [
-        { path: 'today', name: 'today', component: () => import('@/views/TodayPage.vue'), meta: { title: '今日状态' } },
         { path: 'coach', name: 'coach', component: () => import('@/views/ChatPage.vue'), meta: { title: 'AI 教练' } },
-        { path: 'scan', name: 'scan', component: () => import('@/views/FoodScanPage.vue'), meta: { title: '食物分析' } },
+        { path: 'scan', name: 'scan', component: () => import('@/views/FoodScanPage.vue'), meta: { title: '食物照片' } },
         { path: 'library', name: 'library', component: () => import('@/views/KnowledgePage.vue'), meta: { title: '运动营养库' } },
         { path: 'profile', name: 'profile', component: () => import('@/views/ProfilePage.vue'), meta: { title: '身体与目标' } },
       ],
     },
-    { path: '/chat', redirect: '/coach' },
-    { path: '/knowledge', redirect: '/library' },
+    {
+      path: '/admin',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      redirect: '/admin/dashboard',
+      meta: { requiresAdmin: true },
+      children: [
+        { path: 'dashboard', name: 'admin-dashboard', component: () => import('@/views/admin/AdminDashboardPage.vue'), meta: { title: '系统看板' } },
+      ],
+    },
+    { path: '/', redirect: '/app/coach' },
+    { path: '/today', redirect: '/app/coach' },
+    { path: '/coach', redirect: '/app/coach' },
+    { path: '/scan', redirect: '/app/scan' },
+    { path: '/library', redirect: '/app/library' },
+    { path: '/profile', redirect: '/app/profile' },
+    { path: '/chat', redirect: '/app/coach' },
+    { path: '/knowledge', redirect: '/app/library' },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   document.title = `${to.meta.title || '首页'} - NutriMind`
   const userStore = useUserStore()
-  if (!to.meta.public && !userStore.isLoggedIn) return { path: '/login', query: { redirect: to.fullPath } }
-  if (to.meta.public && userStore.isLoggedIn) return '/today'
+
+  if (!to.meta.public && !userStore.isLoggedIn) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  if (userStore.isLoggedIn && !userStore.roleResolved) {
+    try { await userStore.refreshUser() }
+    catch {
+      if (to.meta.requiresAdmin) return '/app/coach'
+    }
+  }
+
+  if (to.meta.public && userStore.isLoggedIn) return userStore.defaultRoute
+  if (to.meta.requiresAdmin && !userStore.isAdmin) return '/app/coach'
+  if (to.meta.userOnly && userStore.isAdmin) return '/admin/dashboard'
 })
 
 router.afterEach(() => {

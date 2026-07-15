@@ -3,7 +3,7 @@
     <div class="auth-heading">
       <span>继续你的计划</span>
       <h2>欢迎回来</h2>
-      <p>登录后查看今天的饮食、训练和营养建议。</p>
+      <p>登录后进入与你身份对应的用户空间或管理控制台。</p>
     </div>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="submit">
       <el-form-item label="用户名" prop="username">
@@ -12,7 +12,7 @@
       <el-form-item label="登录密码" prop="password">
         <el-input v-model="form.password" size="large" type="password" show-password placeholder="请输入登录密码" autocomplete="current-password" />
       </el-form-item>
-      <FuelButton class="full-button" native-type="submit" :loading="loading">进入今日计划</FuelButton>
+      <FuelButton class="full-button" native-type="submit" :loading="loading">登录系统</FuelButton>
     </el-form>
     <FuelButton v-if="isDev" class="full-button preview" variant="secondary" :arrow="false" @click="enterPreview">无后端预览</FuelButton>
     <p class="switch-copy">第一次使用 NutriMind？<router-link to="/register">创建账户</router-link></p>
@@ -45,13 +45,13 @@ async function submit() {
   try {
     await userStore.login(form)
     ElMessage.success('登录成功')
-    router.push(String(route.query.redirect || '/today'))
+    router.push(String(route.query.redirect || userStore.defaultRoute))
   } finally { loading.value = false }
 }
 
 function enterPreview() {
   userStore.enterDemo()
-  router.push('/today')
+  router.push('/app/coach')
 }
 </script>
 

@@ -1,9 +1,9 @@
 <template>
-  <div class="app-layout" :class="{ 'rail-hidden': railHidden }">
+  <div class="app-layout" :class="[{ 'rail-hidden': railHidden }, `mode-${mode}`]">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
 
     <aside id="app-navigation" class="app-rail" aria-label="主导航">
-      <router-link class="brand" to="/today" aria-label="NutriMind 今日状态">
+      <router-link class="brand" :to="brandTarget" :aria-label="brandLabel">
         <Lightning :size="23" weight="fill" aria-hidden="true" />
         <span>NM</span>
       </router-link>
@@ -15,9 +15,10 @@
         </router-link>
       </nav>
 
-      <button class="rail-profile" aria-label="打开个人资料" @click="router.push('/profile')">
+      <button v-if="!isAdminLayout" class="rail-profile" aria-label="打开个人资料" @click="router.push('/app/profile')">
         {{ userInitial }}
       </button>
+      <span v-else class="rail-role" aria-label="管理员空间">AD</span>
     </aside>
 
     <button
@@ -46,12 +47,12 @@
           <el-dropdown trigger="click" @command="handleCommand">
             <button class="account-button" aria-label="打开账户菜单">
               <span>{{ userInitial }}</span>
-              <div><b>{{ userStore.username }}</b><small>Performance Fuel</small></div>
+              <div><b>{{ userStore.username }}</b><small>{{ isAdminLayout ? 'Admin Console' : 'Performance Fuel' }}</small></div>
               <CaretDown :size="15" weight="bold" />
             </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile"><UserCircle :size="17" />身体与目标</el-dropdown-item>
+                <el-dropdown-item v-if="!isAdminLayout" command="profile"><UserCircle :size="17" />身体与目标</el-dropdown-item>
                 <el-dropdown-item command="logout" divided><SignOut :size="17" />退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -73,7 +74,8 @@ import { computed, markRaw, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
-  PhChartDonut as ChartDonut, PhCloudCheck as CloudCheck, PhCloudX as CloudX,
+  PhCloudCheck as CloudCheck, PhCloudX as CloudX,
+  PhGauge as Gauge,
   PhLightning as Lightning,
   PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
   PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle,
@@ -83,6 +85,10 @@ import { getHealthApi } from '@/api/system'
 
 const SIDEBAR_KEY = 'nutrimind_sidebar_hidden'
 
+const props = defineProps({
+  mode: { type: String, default: 'user', validator: (value) => ['user', 'admin'].includes(value) },
+})
+
 function readSidebarPreference() {
   try { return localStorage.getItem(SIDEBAR_KEY) === 'true' }
   catch { return false }
@@ -91,15 +97,22 @@ function readSidebarPreference() {
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const mode = computed(() => props.mode)
+const isAdminLayout = computed(() => props.mode === 'admin')
 const serviceStatus = ref(userStore.isDemo ? 'preview' : 'checking')
 const railHidden = ref(readSidebarPreference())
-const navItems = [
-  { path: '/today', label: '今日', icon: markRaw(ChartDonut) },
-  { path: '/coach', label: '教练', icon: markRaw(Sparkle) },
-  { path: '/scan', label: '分析', icon: markRaw(ScanSmiley) },
-  { path: '/library', label: '营养库', icon: markRaw(BookOpenText) },
-  { path: '/profile', label: '目标', icon: markRaw(Barbell) },
+const userNavItems = [
+  { path: '/app/coach', label: '教练', icon: markRaw(Sparkle) },
+  { path: '/app/scan', label: '照片', icon: markRaw(ScanSmiley) },
+  { path: '/app/library', label: '营养库', icon: markRaw(BookOpenText) },
+  { path: '/app/profile', label: '目标', icon: markRaw(Barbell) },
 ]
+const adminNavItems = [
+  { path: '/admin/dashboard', label: '总览', icon: markRaw(Gauge) },
+]
+const navItems = computed(() => isAdminLayout.value ? adminNavItems : userNavItems)
+const brandTarget = computed(() => isAdminLayout.value ? '/admin/dashboard' : '/app/coach')
+const brandLabel = computed(() => isAdminLayout.value ? 'NutriMind 管理控制台' : 'NutriMind 用户空间')
 const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
 const serviceLabel = computed(() => ({
   preview: '预览数据', checking: '检查服务', online: '服务在线', offline: '服务离线',
@@ -132,7 +145,7 @@ function toggleRail() {
 }
 
 async function handleCommand(command) {
-  if (command === 'profile') router.push('/profile')
+  if (command === 'profile') router.push('/app/profile')
   if (command === 'logout') {
     await userStore.logout()
     router.push('/login')
@@ -205,6 +218,7 @@ async function handleCommand(command) {
 .app-rail nav a:hover { color: var(--text); background: rgba(255,255,255,.04); transform: translateY(-1px); }
 .app-rail nav a.router-link-active { color: var(--primary); background: var(--primary-soft); }
 .rail-profile { width: 46px; height: 46px; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 600; }
+.rail-role { width: 46px; height: 46px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border: 1px solid rgba(159, 226, 75, .18); border-radius: 12px; font-family: "Barlow Condensed"; font-size: .74rem; font-weight: 700; }
 .app-stage { min-width: 0; flex: 1; margin-left: 128px; transition: margin-left 260ms var(--ease-out); }
 .app-layout.rail-hidden .app-stage { margin-left: 18px; }
 .topbar { height: 78px; padding: 0 30px 0 52px; display: flex; align-items: center; justify-content: space-between; }
@@ -231,11 +245,13 @@ main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: non
   .app-rail { inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px; width: auto; height: 70px; padding: 7px 10px; flex-direction: row; }
   .app-layout.rail-hidden .app-rail { opacity: 1; transform: none; pointer-events: auto; }
   .rail-toggle { display: none; }
-  .brand, .rail-profile { display: none; }
-  .app-rail nav { margin: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .brand, .rail-profile, .rail-role { display: none; }
+  .app-rail nav { margin: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .app-rail nav a { min-height: 54px; min-width: 58px; padding: 5px 9px; font-size: .65rem; }
   .topbar { padding: 0 18px; }
   main { padding: 8px 16px 100px; }
+  .mode-admin .app-rail { display: none; }
+  .mode-admin main { padding-bottom: 34px; }
 }
 @media (max-width: 620px) {
   .service-state, .account-button div, .wordmark span { display: none; }

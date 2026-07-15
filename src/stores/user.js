@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { getCurrentUserApi, loginApi, logoutApi } from '@/api/auth'
+import { getDefaultRouteForUser, isAdminUser, isUserRoleResolved } from '@/utils/userAccess'
 
 const USER_KEY = 'nutrimind_user'
 
@@ -16,6 +17,9 @@ export const useUserStore = defineStore('user', {
     isLoggedIn: (state) => Boolean(state.user),
     username: (state) => state.user?.username || '',
     isDemo: (state) => Boolean(state.user?.is_demo),
+    isAdmin: (state) => isAdminUser(state.user),
+    roleResolved: (state) => isUserRoleResolved(state.user),
+    defaultRoute: (state) => getDefaultRouteForUser(state.user),
   },
   actions: {
     saveUser(user) {
@@ -28,7 +32,8 @@ export const useUserStore = defineStore('user', {
     },
     async login(credentials) {
       const result = await loginApi(credentials)
-      this.saveUser(result.user)
+      const user = await getCurrentUserApi()
+      this.saveUser(user || result.user)
     },
     async refreshUser() {
       if (this.isDemo) return
@@ -44,6 +49,7 @@ export const useUserStore = defineStore('user', {
         phone: null,
         roles: ['体验用户'],
         is_active: true,
+        is_superuser: false,
         is_demo: true,
         created_at: new Date().toISOString(),
         last_login_at: new Date().toISOString(),
