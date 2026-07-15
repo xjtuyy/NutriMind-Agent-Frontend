@@ -143,7 +143,7 @@ onBeforeUnmount(() => window.clearTimeout(responseTimer))
 .page-head { margin-bottom: 24px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .page-head .status-chip { margin-bottom: 16px; }
 .chat-workspace { height: max(680px, calc(100dvh - 220px)); display: grid; grid-template-columns: minmax(0, 1fr) 290px; overflow: hidden; }
-.conversation { min-width: 0; display: flex; flex-direction: column; }
+.conversation { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .messages { min-height: 0; flex: 1; padding: 30px clamp(20px, 5vw, 74px); overflow-y: auto; scroll-behavior: smooth; }
 .welcome { max-width: 820px; margin: 5vh auto 42px; text-align: center; }
 .coach-mark { width: 72px; height: 72px; margin: 0 auto 20px; display: grid; place-items: center; color: #10150e; background: var(--primary); border-radius: 18px; transform: rotate(-4deg); box-shadow: 10px 10px 0 rgba(159,226,75,.13); }
@@ -175,7 +175,7 @@ onBeforeUnmount(() => window.clearTimeout(responseTimer))
 .typing i { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; animation: pulse 900ms ease-in-out infinite alternate; }
 .typing i:nth-child(2) { animation-delay: 120ms; }.typing i:nth-child(3) { animation-delay: 240ms; }.typing span { margin-left: 5px; }
 @keyframes pulse { to { opacity: .28; transform: translateY(-3px); } }
-.composer-wrap { padding: 12px 22px 16px; border-top: 1px solid var(--border); }
+.composer-wrap { flex: 0 0 auto; padding: 12px 22px 16px; border-top: 1px solid var(--border); }
 .composer { padding: 11px; background: var(--canvas-soft); border: 1px solid var(--border-strong); border-radius: 14px; }
 .composer textarea { width: 100%; min-height: 52px; max-height: 130px; padding: 8px; color: var(--text); background: transparent; border: 0; outline: 0; resize: vertical; line-height: 1.55; }
 .composer textarea::placeholder { color: #737d74; }

@@ -106,6 +106,41 @@
           <FuelButton :loading="saving" @click="saveProfile">保存目标配置</FuelButton>
         </footer>
       </main>
+
+      <section class="security-panel surface" aria-labelledby="security-title">
+        <div class="security-heading">
+          <div class="security-icon"><LockKey :size="22" weight="bold" /></div>
+          <div>
+            <span>ACCOUNT SECURITY</span>
+            <h2 id="security-title" class="section-title">修改登录密码</h2>
+            <p>验证当前密码后设置新密码，新密码至少需要 6 位。</p>
+          </div>
+        </div>
+        <el-form
+          ref="passwordFormRef"
+          class="security-form"
+          :model="passwordForm"
+          :rules="passwordRules"
+          label-position="top"
+          @submit.prevent="changePassword"
+        >
+          <div class="security-fields">
+            <el-form-item label="当前密码" prop="old_password">
+              <el-input v-model="passwordForm.old_password" type="password" show-password autocomplete="current-password" placeholder="输入当前密码" />
+            </el-form-item>
+            <el-form-item label="新密码" prop="new_password">
+              <el-input v-model="passwordForm.new_password" type="password" show-password autocomplete="new-password" placeholder="至少 6 位" />
+            </el-form-item>
+            <el-form-item label="确认新密码" prop="confirm_password">
+              <el-input v-model="passwordForm.confirm_password" type="password" show-password autocomplete="new-password" placeholder="再次输入新密码" />
+            </el-form-item>
+          </div>
+          <div class="security-footer">
+            <p>{{ userStore.isDemo ? '体验模式没有真实账户，不能修改密码。' : '密码不会保存在浏览器本地。' }}</p>
+            <FuelButton native-type="submit" :loading="passwordSaving" :disabled="userStore.isDemo">确认修改密码</FuelButton>
+          </div>
+        </el-form>
+      </section>
     </section>
   </div>
 </template>
@@ -122,6 +157,7 @@ import {
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
 import FuelField from '@/components/ui/FuelField.vue'
+import { changePasswordApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 const PROFILE_KEY = 'nutrimind_goal_profile'
@@ -141,6 +177,26 @@ function loadProfile() {
 const userStore = useUserStore()
 const profile = reactive(loadProfile())
 const saving = ref(false)
+const passwordSaving = ref(false)
+const passwordFormRef = ref()
+const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
+const passwordRules = {
+  old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '新密码至少 6 位', trigger: 'blur' },
+  ],
+  confirm_password: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (value === passwordForm.new_password) callback()
+        else callback(new Error('两次输入的新密码不一致'))
+      },
+      trigger: 'blur',
+    },
+  ],
+}
 const modes = [
   { value: 'cut', label: '减脂', description: '控制热量，保住训练表现', icon: markRaw(TrendDown) },
   { value: 'muscle', label: '增肌', description: '稳定盈余，优先蛋白质', icon: markRaw(Barbell) },
@@ -180,6 +236,25 @@ async function saveProfile() {
   saving.value = false
   ElMessage.success('目标配置已保存到当前设备')
 }
+
+async function changePassword() {
+  if (userStore.isDemo) {
+    ElMessage.warning('体验模式不能修改密码')
+    return
+  }
+  if (!await passwordFormRef.value.validate().catch(() => false)) return
+  passwordSaving.value = true
+  try {
+    await changePasswordApi({
+      old_password: passwordForm.old_password,
+      new_password: passwordForm.new_password,
+    })
+    passwordFormRef.value.resetFields()
+    ElMessage.success('密码修改成功')
+  } finally {
+    passwordSaving.value = false
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -212,6 +287,14 @@ async function saveProfile() {
 .identity-card dt { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
 .identity-card dd { margin: 0; max-width: 48%; overflow: hidden; color: var(--text-secondary); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
 .goal-panel { padding: clamp(20px, 3vw, 34px); }
+.security-panel { grid-column: 2; padding: clamp(20px, 3vw, 30px); }
+.security-heading { margin-bottom: 22px; display: flex; align-items: flex-start; gap: 14px; }
+.security-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 11px; }
+.security-heading > div:last-child > span { display: block; margin-bottom: 4px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
+.security-heading p { margin: 6px 0 0; color: var(--muted); font-size: .76rem; }
+.security-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.security-footer { padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--border); }
+.security-footer p { margin: 0; color: var(--muted); font-size: .72rem; }
 .panel-heading { margin-bottom: 5px; padding-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .65rem; font-weight: 700; letter-spacing: .13em; }
 .step-mark { color: var(--muted); font-family: "Barlow Condensed"; font-size: 1rem; }
@@ -241,6 +324,7 @@ async function saveProfile() {
 .local-note b { display: block; color: var(--text-secondary); }
 @media (max-width: 1040px) {
   .profile-grid { grid-template-columns: 1fr; }
+  .security-panel { grid-column: 1; }
   .identity-card { display: grid; grid-template-columns: auto 1fr; column-gap: 24px; }
   .identity-top { grid-row: 1 / 5; display: block; }
   .account-state { margin-top: 16px; display: flex; }
@@ -253,6 +337,9 @@ async function saveProfile() {
   .mode-grid button { min-height: 88px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; }
   .mode-grid button svg { grid-row: 1 / 3; }
   .field-grid { grid-template-columns: 1fr; }
+  .security-fields { grid-template-columns: 1fr; }
+  .security-footer { align-items: stretch; flex-direction: column; }
+  .security-footer .fuel-button { width: 100%; }
   .form-footer { align-items: stretch; flex-direction: column; }
   .form-footer .fuel-button { width: 100%; }
 }

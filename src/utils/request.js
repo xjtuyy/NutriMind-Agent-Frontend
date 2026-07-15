@@ -16,7 +16,9 @@ request.interceptors.response.use(
       localStorage.removeItem('nutrimind_user')
       if (window.location.pathname !== '/login') window.location.assign('/login')
     }
-    ElMessage.error(detail || (status ? `请求失败（${status}）` : '无法连接后端服务'))
+    if (!error.config?.silent) {
+      ElMessage.error(detail || (status ? `请求失败（${status}）` : '无法连接后端服务'))
+    }
     return Promise.reject(error)
   },
 )

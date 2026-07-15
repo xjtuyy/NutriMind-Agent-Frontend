@@ -62,8 +62,8 @@
       </SpotlightCard>
       <div class="stat-card formats surface">
         <FileText :size="24" weight="duotone" aria-hidden="true" />
-        <div><strong class="metric-number">04</strong><span>种文件格式</span></div>
-        <small>PDF · MD · TXT · TEXT</small>
+        <div><strong class="metric-number">09</strong><span>种文件格式</span></div>
+        <small>PDF · MD · TXT + 常见图片</small>
       </div>
     </section>
 
@@ -89,12 +89,12 @@
           <article v-for="(item, index) in results" :key="`${item.source}-${index}`" class="result-item">
             <header>
               <span class="result-rank">{{ String(index + 1).padStart(2, '0') }}</span>
-              <div class="source-name"><FileText :size="17" />{{ item.source || '未知来源' }}</div>
+              <div class="source-name"><FileText :size="17" />{{ item.fileName || item.source || '未知来源' }}</div>
               <div class="relevance" :aria-label="`相关度 ${formatScore(item.score)}`">
                 <span><i :style="{ width: formatScore(item.score) }" /></span>
                 {{ formatScore(item.score) }}
               </div>
-              <button v-if="item.source" class="delete-button" :aria-label="`删除来源 ${item.source}`" @click="remove(item.source)">
+              <button v-if="item.source" class="delete-button" :aria-label="`删除来源 ${item.fileName || item.source}`" @click="remove(item)">
                 <Trash :size="17" />
               </button>
             </header>
@@ -111,7 +111,7 @@
           </div>
           <span class="command-index small">02</span>
         </div>
-        <p>上传膳食指南、课程资料或论文笔记，系统会把内容拆成可检索片段。</p>
+        <p>上传膳食指南、课程资料、论文笔记或知识图片，系统会解析为可检索片段。</p>
         <el-upload
           ref="uploadRef"
           drag
@@ -124,7 +124,7 @@
         >
           <div class="drop-visual"><UploadSimple :size="29" weight="bold" /></div>
           <b>拖入文件，或点击选择</b>
-          <span>PDF、Markdown 或纯文本</span>
+          <span>PDF、Markdown、纯文本或常见图片</span>
         </el-upload>
         <div class="privacy-note"><ShieldCheck :size="17" /><span>请仅上传你信任且有权使用的资料。</span></div>
         <FuelButton class="upload-action" :loading="uploading" :disabled="!selectedFile" @click="upload">
@@ -149,8 +149,9 @@ import SpotlightCard from '@/components/motion/SpotlightCard.vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
 import { deleteDocumentApi, getKnowledgeStatsApi, searchKnowledgeApi, uploadDocumentApi } from '@/api/knowledge'
 import { useUserStore } from '@/stores/user'
+import { normalizeKnowledgeSearch, normalizeKnowledgeStats } from '@/utils/knowledgeData'
 
-const accept = '.pdf,.md,.txt,.text'
+const accept = '.pdf,.md,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp'
 const quickQueries = ['减脂期怎么吃', '训练后补给', '膳食纤维摄入']
 const uploadRef = ref()
 const selectedFile = ref(null)
@@ -179,9 +180,9 @@ async function loadStats() {
   }
   statsLoading.value = true
   try {
-    const data = payloadData(await getKnowledgeStatsApi())
-    stats.total_documents = data?.total_documents || 0
-    stats.total_chunks = data?.total_chunks || 0
+    const data = normalizeKnowledgeStats(await getKnowledgeStatsApi())
+    stats.total_documents = data.total_documents
+    stats.total_chunks = data.total_chunks
   } finally {
     statsLoading.value = false
   }
@@ -228,16 +229,18 @@ async function search() {
       results.value = demoResults.slice(0, limit.value)
       return
     }
-    const data = payloadData(await searchKnowledgeApi({ query: submittedQuery, k: limit.value }))
-    results.value = data?.results || []
+    const data = normalizeKnowledgeSearch(await searchKnowledgeApi({ query: submittedQuery, k: limit.value }))
+    results.value = data.results
   } finally {
     searching.value = false
   }
 }
 
-async function remove(source) {
+async function remove(item) {
+  const source = item.source
+  const displayName = item.fileName || source
   try {
-    await ElMessageBox.confirm(`删除后将无法检索“${source}”中的内容，是否继续？`, '确认删除知识来源', {
+    await ElMessageBox.confirm(`删除后将无法检索“${displayName}”中的内容，是否继续？`, '确认删除知识来源', {
       type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消',
     })
     if (!userStore.isDemo) await deleteDocumentApi(source)

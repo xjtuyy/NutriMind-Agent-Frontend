@@ -1,8 +1,8 @@
 <template>
-  <div class="app-layout">
+  <div class="app-layout" :class="{ 'rail-hidden': railHidden }">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
 
-    <aside class="app-rail" aria-label="主导航">
+    <aside id="app-navigation" class="app-rail" aria-label="主导航">
       <router-link class="brand" to="/today" aria-label="NutriMind 今日状态">
         <Lightning :size="23" weight="fill" aria-hidden="true" />
         <span>NM</span>
@@ -20,6 +20,18 @@
       </button>
     </aside>
 
+    <button
+      class="rail-toggle"
+      type="button"
+      aria-controls="app-navigation"
+      :aria-expanded="!railHidden"
+      :aria-label="railHidden ? '显示侧边栏' : '隐藏侧边栏'"
+      :title="railHidden ? '显示侧边栏' : '隐藏侧边栏'"
+      @click="toggleRail"
+    >
+      <SidebarSimple :size="20" :weight="railHidden ? 'regular' : 'fill'" aria-hidden="true" />
+    </button>
+
     <section class="app-stage">
       <header class="topbar">
         <div class="wordmark">
@@ -27,7 +39,10 @@
           <span>{{ route.meta.title }}</span>
         </div>
         <div class="top-actions">
-          <span class="service-state"><CloudCheck :size="17" weight="bold" /> {{ userStore.isDemo ? '预览数据' : '服务在线' }}</span>
+          <span class="service-state" :class="serviceStatus">
+            <component :is="serviceIcon" :size="17" weight="bold" />
+            {{ serviceLabel }}
+          </span>
           <el-dropdown trigger="click" @command="handleCommand">
             <button class="account-button" aria-label="打开账户菜单">
               <span>{{ userInitial }}</span>
@@ -54,19 +69,30 @@
 </template>
 
 <script setup>
-import { computed, markRaw, onMounted } from 'vue'
+import { computed, markRaw, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
-  PhChartDonut as ChartDonut, PhCloudCheck as CloudCheck, PhLightning as Lightning,
+  PhChartDonut as ChartDonut, PhCloudCheck as CloudCheck, PhCloudX as CloudX,
+  PhLightning as Lightning,
   PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
-  PhUserCircle as UserCircle,
+  PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle,
 } from '@phosphor-icons/vue'
 import { useUserStore } from '@/stores/user'
+import { getHealthApi } from '@/api/system'
+
+const SIDEBAR_KEY = 'nutrimind_sidebar_hidden'
+
+function readSidebarPreference() {
+  try { return localStorage.getItem(SIDEBAR_KEY) === 'true' }
+  catch { return false }
+}
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const serviceStatus = ref(userStore.isDemo ? 'preview' : 'checking')
+const railHidden = ref(readSidebarPreference())
 const navItems = [
   { path: '/today', label: '今日', icon: markRaw(ChartDonut) },
   { path: '/coach', label: '教练', icon: markRaw(Sparkle) },
@@ -75,8 +101,35 @@ const navItems = [
   { path: '/profile', label: '目标', icon: markRaw(Barbell) },
 ]
 const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
+const serviceLabel = computed(() => ({
+  preview: '预览数据', checking: '检查服务', online: '服务在线', offline: '服务离线',
+})[serviceStatus.value])
+const serviceIcon = computed(() => serviceStatus.value === 'offline' ? CloudX : CloudCheck)
 
-onMounted(() => userStore.refreshUser().catch(() => {}))
+onMounted(() => {
+  userStore.refreshUser().catch(() => {})
+  checkHealth()
+})
+
+async function checkHealth() {
+  if (userStore.isDemo) {
+    serviceStatus.value = 'preview'
+    return
+  }
+  serviceStatus.value = 'checking'
+  try {
+    const health = await getHealthApi()
+    serviceStatus.value = health?.status === 'ok' ? 'online' : 'offline'
+  } catch {
+    serviceStatus.value = 'offline'
+  }
+}
+
+function toggleRail() {
+  railHidden.value = !railHidden.value
+  try { localStorage.setItem(SIDEBAR_KEY, String(railHidden.value)) }
+  catch { /* The preference remains active for the current page. */ }
+}
 
 async function handleCommand(command) {
   if (command === 'profile') router.push('/profile')
@@ -103,7 +156,28 @@ async function handleCommand(command) {
   border-radius: 20px;
   box-shadow: $shadow;
   backdrop-filter: blur(18px);
+  transition: opacity 220ms var(--ease-out), transform 260ms var(--ease-out);
 }
+.rail-toggle {
+  position: fixed;
+  z-index: calc(var(--z-nav) + 1);
+  top: 25px;
+  left: 120px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: rgba(20, 25, 21, .94);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
+  transition: left 260ms var(--ease-out), color 180ms var(--ease-out), border-color 180ms var(--ease-out);
+}
+.rail-toggle:hover { color: var(--primary); border-color: rgba(159, 226, 75, .35); }
+.app-layout.rail-hidden .app-rail { opacity: 0; transform: translateX(-130%); pointer-events: none; }
+.app-layout.rail-hidden .rail-toggle { left: 18px; }
 .brand {
   width: 58px;
   height: 58px;
@@ -131,13 +205,16 @@ async function handleCommand(command) {
 .app-rail nav a:hover { color: var(--text); background: rgba(255,255,255,.04); transform: translateY(-1px); }
 .app-rail nav a.router-link-active { color: var(--primary); background: var(--primary-soft); }
 .rail-profile { width: 46px; height: 46px; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 600; }
-.app-stage { min-width: 0; flex: 1; margin-left: 128px; }
-.topbar { height: 78px; padding: 0 30px 0 4px; display: flex; align-items: center; justify-content: space-between; }
+.app-stage { min-width: 0; flex: 1; margin-left: 128px; transition: margin-left 260ms var(--ease-out); }
+.app-layout.rail-hidden .app-stage { margin-left: 18px; }
+.topbar { height: 78px; padding: 0 30px 0 52px; display: flex; align-items: center; justify-content: space-between; }
 .wordmark { display: flex; align-items: baseline; gap: 10px; }
 .wordmark b { font-family: "Barlow Condensed"; font-size: 1.15rem; letter-spacing: .01em; }
 .wordmark span { color: var(--muted); font-size: .78rem; }
 .top-actions { display: flex; align-items: center; gap: 16px; }
 .service-state { min-height: 36px; padding: 0 11px; display: inline-flex; align-items: center; gap: 7px; color: var(--primary); background: var(--primary-soft); border-radius: 8px; font-size: .75rem; }
+.service-state.checking { color: var(--text-secondary); background: var(--surface); }
+.service-state.offline { color: #ff938d; background: rgba(240, 103, 95, .1); }
 .account-button { min-height: 48px; padding: 4px 7px; display: flex; align-items: center; gap: 9px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 11px; }
 .account-button:hover { background: var(--surface); border-color: var(--border); }
 .account-button > span { width: 36px; height: 36px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 9px; font-weight: 700; }
@@ -150,8 +227,10 @@ main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: non
 .page-leave-to { opacity: 0; transform: translateY(-6px); }
 
 @media (max-width: 900px) {
-  .app-stage { margin-left: 0; }
+  .app-stage, .app-layout.rail-hidden .app-stage { margin-left: 0; }
   .app-rail { inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px; width: auto; height: 70px; padding: 7px 10px; flex-direction: row; }
+  .app-layout.rail-hidden .app-rail { opacity: 1; transform: none; pointer-events: auto; }
+  .rail-toggle { display: none; }
   .brand, .rail-profile { display: none; }
   .app-rail nav { margin: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
   .app-rail nav a { min-height: 54px; min-width: 58px; padding: 5px 9px; font-size: .65rem; }
