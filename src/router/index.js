@@ -29,6 +29,7 @@ const router = createRouter({
         { path: 'dashboard', name: 'admin-dashboard', component: () => import('@/views/admin/AdminDashboardPage.vue'), meta: { title: '系统看板' } },
         { path: 'users', name: 'admin-users', component: () => import('@/views/admin/AdminUsersPage.vue'), meta: { title: '用户管理' } },
         { path: 'detections', name: 'admin-detections', component: () => import('@/views/admin/AdminDetectionPage.vue'), meta: { title: '目标检测监控' } },
+        { path: 'training', name: 'admin-training', component: () => import('@/views/admin/AdminTrainingPage.vue'), meta: { title: '模型训练' } },
       ],
     },
     { path: '/', redirect: '/app/coach' },

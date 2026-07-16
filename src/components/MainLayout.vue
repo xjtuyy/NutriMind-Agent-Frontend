@@ -75,7 +75,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
   PhCloudCheck as CloudCheck, PhCloudX as CloudX,
-  PhGauge as Gauge,
+  PhCpu as Cpu, PhGauge as Gauge,
   PhLightning as Lightning,
   PhScan as Scan, PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
   PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle, PhUsers as Users,
@@ -111,6 +111,7 @@ const adminNavItems = [
   { path: '/admin/dashboard', label: '总览', icon: markRaw(Gauge) },
   { path: '/admin/users', label: '用户', icon: markRaw(Users) },
   { path: '/admin/detections', label: '检测', icon: markRaw(Scan) },
+  { path: '/admin/training', label: '训练', icon: markRaw(Cpu) },
 ]
 const navItems = computed(() => isAdminLayout.value ? adminNavItems : userNavItems)
 const brandTarget = computed(() => isAdminLayout.value ? '/admin/dashboard' : '/app/coach')
@@ -252,7 +253,7 @@ main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: non
   .app-rail nav a { min-height: 54px; min-width: 58px; padding: 5px 9px; font-size: .65rem; }
   .topbar { padding: 0 18px; }
   main { padding: 8px 16px 100px; }
-  .mode-admin .app-rail nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mode-admin .app-rail nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .mode-admin main { padding-bottom: 100px; }
 }
 @media (max-width: 620px) {

@@ -2,9 +2,9 @@
   <div class="page-shell scan-page">
     <header class="page-head">
       <div>
-        <span class="status-chip"><ScanSmiley :size="16" weight="bold" /> 餐食影像库</span>
-        <h1 class="page-title">拍下这一餐，留住饮食记录。</h1>
-        <p class="page-description">上传餐食照片并管理自己的历史影像。食材识别与营养分析将在模型接入后开放。</p>
+        <span class="status-chip"><ScanSmiley :size="16" weight="bold" /> 智能目标检测</span>
+        <h1 class="page-title">拍下这一餐，看清画面里的食物。</h1>
+        <p class="page-description">上传 JPG、PNG 或 WEBP 图片，调用检测模型识别食物目标；也可以只把原图保存到个人影像库。</p>
       </div>
     </header>
 
@@ -14,7 +14,7 @@
           ref="fileInput"
           class="sr-only"
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/bmp,image/webp"
+          accept="image/png,image/jpeg,image/webp"
           capture="environment"
           @change="selectFile"
         />
@@ -29,14 +29,46 @@
         >
           <span><CameraPlus :size="34" weight="duotone" /></span>
           <b>选择或拍摄食物照片</b>
-          <p>点击选择，也可以把图片拖到这里。照片只会保存到你的个人影像库。</p>
+          <p>点击选择，也可以把图片拖到这里。支持 JPG、PNG、WEBP，文件不超过 10 MB。</p>
         </button>
 
         <div v-else class="preview">
-          <img :src="previewUrl" alt="准备上传的餐食照片" />
+          <img :src="previewUrl" alt="准备检测的餐食照片" @load="handlePreviewLoad" />
+          <svg
+            v-if="detectionResult && imageWidth && imageHeight"
+            class="detection-overlay"
+            :viewBox="`0 0 ${imageWidth} ${imageHeight}`"
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
+          >
+            <g v-for="(item, index) in detectionResult.detections" :key="`${item.className}-${index}`">
+              <rect v-if="item.bbox"
+                :x="item.bbox[0]" :y="item.bbox[1]"
+                :width="Math.max(0, item.bbox[2] - item.bbox[0])"
+                :height="Math.max(0, item.bbox[3] - item.bbox[1])"
+                :class="{ 'low-confidence': item.lowConfidence }"
+              />
+            </g>
+          </svg>
           <button type="button" aria-label="重新选择照片" @click="fileInput?.click()">
             <ArrowsClockwise :size="19" weight="bold" />
           </button>
+        </div>
+
+        <div class="detection-settings">
+          <label>
+            <span>检测场景</span>
+            <select v-model.number="sceneId" :disabled="scenesLoading || detecting">
+              <option v-for="scene in scenes" :key="scene.id" :value="scene.id">{{ scene.name }}</option>
+            </select>
+          </label>
+          <button type="button" :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
+            <SlidersHorizontal :size="18" />高级参数
+          </button>
+          <div v-if="advancedOpen" class="thresholds">
+            <label><span>置信度阈值 <b>{{ Math.round(confThreshold * 100) }}%</b></span><input v-model.number="confThreshold" type="range" min="0.05" max="0.95" step="0.05"></label>
+            <label><span>IoU 阈值 <b>{{ Math.round(iouThreshold * 100) }}%</b></span><input v-model.number="iouThreshold" type="range" min="0.05" max="0.95" step="0.05"></label>
+          </div>
         </div>
 
         <p v-if="uploadError" class="inline-error" role="alert">{{ uploadError }}</p>
@@ -47,8 +79,11 @@
             <b>{{ selectedFile?.name || '尚未选择' }}</b>
           </div>
           <div class="action-buttons">
-            <button v-if="selectedFile" type="button" class="clear-button" @click="clearSelection">取消</button>
-            <FuelButton :disabled="!selectedFile" :loading="uploading" @click="savePhoto">保存照片</FuelButton>
+            <button v-if="selectedFile" type="button" class="clear-button" :disabled="detecting || uploading" @click="clearSelection">取消</button>
+            <button type="button" class="save-button" :disabled="!selectedFile || detecting || uploading" @click="savePhoto">
+              <CircleNotch v-if="uploading" class="spin" :size="17" />{{ uploading ? '保存中' : '仅保存原图' }}
+            </button>
+            <FuelButton :disabled="!selectedFile || uploading" :loading="detecting" @click="detectPhoto">开始检测</FuelButton>
           </div>
         </div>
       </div>
@@ -56,13 +91,31 @@
       <aside class="capability-side surface">
         <div class="capability-icon"><CloudCheck :size="25" weight="duotone" /></div>
         <h2 class="section-title">当前可以做什么</h2>
-        <p>API 3.0 已支持个人餐食照片的保存与管理，分析能力仍在准备中。</p>
+        <p>检测 API 已接入；照片保存与检测是两个独立操作，你可以按需要选择。</p>
         <ul>
           <li><CheckCircle :size="19" weight="fill" /><span><b>保存原始照片</b><small>上传后同步到你的账户</small></span></li>
           <li><CheckCircle :size="19" weight="fill" /><span><b>查看拍照历史</b><small>按页浏览之前保存的餐食</small></span></li>
-          <li class="pending"><Hourglass :size="19" weight="duotone" /><span><b>智能营养分析</b><small>等待目标检测模型接入</small></span></li>
+          <li><CheckCircle :size="19" weight="fill" /><span><b>识别并标记目标</b><small>返回类别、置信度和目标框</small></span></li>
         </ul>
       </aside>
+    </section>
+
+    <section v-if="detectionResult" class="result-section surface" aria-labelledby="result-title" aria-live="polite">
+      <header class="result-head">
+        <div><span><Crosshair :size="17" weight="bold" /> Detection result</span><h2 id="result-title" class="section-title">检测结果</h2></div>
+        <dl><div><dt>目标数量</dt><dd>{{ detectionResult.totalObjects }}</dd></div><div><dt>推理耗时</dt><dd>{{ formatInferenceTime(detectionResult.inferenceTime) }}</dd></div></dl>
+      </header>
+      <p v-if="!detectionResult.detections.length" class="no-detection">当前阈值下没有检测到目标。可以降低置信度阈值后重试。</p>
+      <div v-else class="detection-list">
+        <article v-for="(item, index) in detectionResult.detections" :key="`${item.className}-${index}`">
+          <span class="target-index">{{ String(index + 1).padStart(2, '0') }}</span>
+          <div><b>{{ item.classNameCn || item.className || '未知类别' }}</b><small>{{ item.className || 'unknown' }}</small></div>
+          <strong>{{ formatConfidence(item.confidence) }}</strong>
+          <span v-if="item.lowConfidence" class="confidence-warning">低置信度</span>
+          <code>{{ formatBbox(item.bbox) }}</code>
+        </article>
+      </div>
+      <footer>任务编号：<code>{{ detectionResult.taskUuid || '未返回' }}</code></footer>
     </section>
 
     <section class="history-section surface" aria-labelledby="history-title">
@@ -150,21 +203,33 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   PhArrowsClockwise as ArrowsClockwise, PhCameraPlus as CameraPlus,
   PhCaretLeft as CaretLeft, PhCaretRight as CaretRight, PhCheckCircle as CheckCircle,
-  PhCircleNotch as CircleNotch, PhCloudCheck as CloudCheck, PhHourglass as Hourglass,
+  PhCircleNotch as CircleNotch, PhCloudCheck as CloudCheck, PhCrosshair as Crosshair,
   PhImageBroken as ImageBroken, PhImagesSquare as ImagesSquare, PhScanSmiley as ScanSmiley,
-  PhTrash as Trash, PhWarningCircle as WarningCircle,
+  PhSlidersHorizontal as SlidersHorizontal, PhTrash as Trash, PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
 import { captureImageApi, deleteCameraImageApi, getCameraHistoryApi, getCameraImageApi } from '@/api/camera'
+import { detectImageApi, getDetectionScenesApi } from '@/api/detection'
 import { useUserStore } from '@/stores/user'
 import { normalizeCameraHistory, normalizeCameraItem } from '@/utils/cameraData'
+import { normalizeDetectionResult, normalizeDetectionScenes } from '@/utils/detectionTaskData'
 
 const pageSize = 8
 const fileInput = ref(null)
 const selectedFile = ref(null)
 const previewUrl = ref('')
 const uploading = ref(false)
+const detecting = ref(false)
 const uploadError = ref('')
+const detectionResult = ref(null)
+const imageWidth = ref(0)
+const imageHeight = ref(0)
+const scenes = ref([{ id: 1, name: '默认场景' }])
+const sceneId = ref(1)
+const scenesLoading = ref(false)
+const advancedOpen = ref(false)
+const confThreshold = ref(.25)
+const iouThreshold = ref(.45)
 const historyLoading = ref(true)
 const historyError = ref('')
 const historyItems = ref([])
@@ -185,8 +250,12 @@ const historySummary = computed(() => {
 
 function applyFile(file) {
   if (!file) return
-  if (!file.type?.startsWith('image/')) {
-    ElMessage.warning('请选择图片文件')
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    ElMessage.warning('只支持 JPG、PNG 或 WEBP 图片')
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.warning('图片大小不能超过 10 MB')
     return
   }
   clearSelection()
@@ -209,6 +278,65 @@ function clearSelection() {
   previewUrl.value = ''
   selectedFile.value = null
   uploadError.value = ''
+  detectionResult.value = null
+  imageWidth.value = 0
+  imageHeight.value = 0
+}
+
+function handlePreviewLoad(event) {
+  imageWidth.value = event.target?.naturalWidth || 0
+  imageHeight.value = event.target?.naturalHeight || 0
+}
+
+async function loadScenes() {
+  if (userStore.isDemo) return
+  scenesLoading.value = true
+  try {
+    const items = normalizeDetectionScenes(await getDetectionScenesApi({ silent: true }))
+    if (items.length) {
+      scenes.value = items
+      if (!items.some((item) => item.id === sceneId.value)) sceneId.value = items[0].id
+    }
+  } catch {
+    scenes.value = [{ id: 1, name: '默认场景' }]
+  } finally {
+    scenesLoading.value = false
+  }
+}
+
+async function detectPhoto() {
+  if (!selectedFile.value) return
+  detecting.value = true
+  uploadError.value = ''
+  detectionResult.value = null
+  try {
+    if (userStore.isDemo) {
+      await new Promise((resolve) => window.setTimeout(resolve, 520))
+      const width = imageWidth.value || 1200
+      const height = imageHeight.value || 800
+      detectionResult.value = normalizeDetectionResult({ data: {
+        task_uuid: `preview-${Date.now()}`,
+        detections: [
+          { class_name: 'salad', class_name_cn: '蔬菜沙拉', confidence: .91, bbox: [width * .08, height * .12, width * .58, height * .86] },
+          { class_name: 'chicken_breast', class_name_cn: '鸡胸肉', confidence: .78, bbox: [width * .48, height * .28, width * .91, height * .82] },
+        ],
+        total_objects: 2,
+        inference_time: 86,
+      } })
+      ElMessage.success('体验模式：已生成示例检测结果')
+      return
+    }
+    detectionResult.value = normalizeDetectionResult(await detectImageApi(selectedFile.value, {
+      sceneId: sceneId.value,
+      confThreshold: confThreshold.value,
+      iouThreshold: iouThreshold.value,
+    }))
+    ElMessage.success(`检测完成，共识别 ${detectionResult.value.totalObjects} 个目标`)
+  } catch {
+    uploadError.value = '目标检测失败，请检查服务状态或调整图片后重试。'
+  } finally {
+    detecting.value = false
+  }
 }
 
 async function savePhoto() {
@@ -229,6 +357,9 @@ async function savePhoto() {
       demoItem.previewLoading = false
       previewUrl.value = ''
       selectedFile.value = null
+      detectionResult.value = null
+      imageWidth.value = 0
+      imageHeight.value = 0
       historyItems.value = [demoItem, ...historyItems.value]
       total.value += 1
       ElMessage.success('体验模式：照片已加入当前影像库')
@@ -348,7 +479,26 @@ function formatDate(value) {
   }).format(date)
 }
 
-onMounted(loadHistory)
+function formatConfidence(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${Math.round(number * 100)}%` : '--'
+}
+
+function formatInferenceTime(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '--'
+  return number >= 1000 ? `${(number / 1000).toFixed(2)} s` : `${Math.round(number)} ms`
+}
+
+function formatBbox(bbox) {
+  if (!Array.isArray(bbox)) return '坐标未返回'
+  return `[${bbox.map((value) => Math.round(value)).join(', ')}]`
+}
+
+onMounted(() => {
+  loadHistory()
+  loadScenes()
+})
 
 onBeforeUnmount(() => {
   historyGeneration += 1
@@ -370,18 +520,32 @@ onBeforeUnmount(() => {
 .drop-zone > span { width: 70px; height: 70px; margin-bottom: 18px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 17px; }
 .drop-zone b { font-family: "Barlow Condensed", MiSans, sans-serif; font-size: 1.75rem; }
 .drop-zone p { max-width: 44ch; margin: 9px 0 0; color: var(--muted); line-height: 1.6; }
-.preview { position: relative; min-height: 420px; overflow: hidden; border-radius: 14px; }
-.preview img { width: 100%; height: 420px; object-fit: cover; }
+.preview { position: relative; min-height: 420px; overflow: hidden; background: #080b0a; border: 1px solid var(--border); border-radius: 14px; }
+.preview img { width: 100%; height: 420px; display: block; object-fit: contain; }
+.detection-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.detection-overlay rect { fill: rgba(159, 226, 75, .08); stroke: var(--primary); stroke-width: 4; vector-effect: non-scaling-stroke; }
+.detection-overlay rect.low-confidence { fill: rgba(246, 173, 85, .08); stroke: var(--warning); stroke-dasharray: 9 6; }
 .preview button { position: absolute; top: 14px; right: 14px; width: 46px; height: 46px; display: grid; place-items: center; color: var(--text); background: rgba(13, 16, 15, .86); border: 1px solid var(--border-strong); border-radius: 10px; backdrop-filter: blur(10px); }
+.detection-settings { margin-top: 14px; padding: 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 12px; }
+.detection-settings > label, .thresholds label { display: grid; gap: 7px; color: var(--muted); font-size: .68rem; }
+.detection-settings select { min-height: 44px; padding: 0 12px; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border-strong); border-radius: 9px; }
+.detection-settings > button { min-height: 44px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 9px; }
+.detection-settings > button:hover { color: var(--primary); border-color: var(--primary); }
+.thresholds { grid-column: 1 / -1; padding-top: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.thresholds label span { display: flex; justify-content: space-between; }
+.thresholds label b { color: var(--primary); }
+.thresholds input { width: 100%; accent-color: var(--primary); }
 .inline-error { margin: 12px 0 0; padding: 11px 13px; color: #ffc8c8; background: rgba(231, 76, 60, .09); border: 1px solid rgba(231, 76, 60, .24); border-radius: 10px; font-size: .78rem; }
 .scan-actions { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .scan-actions > div:first-child { min-width: 0; display: grid; gap: 4px; }
 .scan-actions small { color: var(--muted); font-size: .7rem; }
 .scan-actions b { max-width: 360px; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
 .action-buttons { display: flex; align-items: center; gap: 9px; }
-.clear-button, .refresh-button, .pagination button, .state-panel button { min-height: 42px; padding: 0 14px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 10px; font-weight: 600; transition: color 180ms var(--ease-out), border-color 180ms var(--ease-out), transform 180ms var(--ease-out); }
-.clear-button:hover, .refresh-button:hover, .pagination button:hover:not(:disabled), .state-panel button:hover { color: var(--primary); border-color: var(--primary); }
+.clear-button, .save-button, .refresh-button, .pagination button, .state-panel button { min-height: 42px; padding: 0 14px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 10px; font-weight: 600; transition: color 180ms var(--ease-out), border-color 180ms var(--ease-out), transform 180ms var(--ease-out); }
+.save-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: var(--text); background: var(--surface-soft); }
+.clear-button:hover:not(:disabled), .save-button:hover:not(:disabled), .refresh-button:hover, .pagination button:hover:not(:disabled), .state-panel button:hover { color: var(--primary); border-color: var(--primary); }
 .clear-button:active, .refresh-button:active, .pagination button:active, .state-panel button:active { transform: scale(.98); }
+.clear-button:disabled, .save-button:disabled { cursor: not-allowed; opacity: .45; }
 .capability-side { padding: 28px; }
 .capability-icon { width: 52px; height: 52px; margin-bottom: 22px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 13px; }
 .capability-side > p { margin: 8px 0 26px; color: var(--muted); font-size: .82rem; line-height: 1.65; }
@@ -392,6 +556,24 @@ onBeforeUnmount(() => {
 .capability-side li span { display: grid; gap: 4px; }
 .capability-side li b { color: var(--text); font-size: .84rem; }
 .capability-side li small { color: var(--muted); font-size: .72rem; }
+.result-section { margin-top: 18px; padding: clamp(20px, 3vw, 30px); }
+.result-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; }
+.result-head > div > span { margin-bottom: 5px; display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-size: .66rem; font-weight: 700; text-transform: uppercase; }
+.result-head dl { margin: 0; display: flex; gap: 10px; }
+.result-head dl div { min-width: 100px; padding: 10px 13px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 10px; }
+.result-head dt { color: var(--muted); font-size: .62rem; }
+.result-head dd { margin: 3px 0 0; font-family: "Barlow Condensed", MiSans, sans-serif; font-size: 1.22rem; font-weight: 700; }
+.detection-list { margin-top: 20px; display: grid; gap: 8px; }
+.detection-list article { min-width: 0; padding: 12px 14px; display: grid; grid-template-columns: 38px minmax(120px, 1fr) 64px auto minmax(140px, auto); align-items: center; gap: 12px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 11px; }
+.target-index { color: var(--primary); font-family: "Barlow Condensed", sans-serif; font-size: 1.12rem; font-weight: 700; }
+.detection-list article > div { min-width: 0; display: grid; gap: 2px; }
+.detection-list article b { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.detection-list article small { color: var(--muted); font-size: .64rem; }
+.detection-list article strong { color: var(--primary); font-family: "Barlow Condensed", sans-serif; font-size: 1.08rem; }
+.confidence-warning { padding: 4px 7px; color: var(--warning); background: rgba(246, 173, 85, .08); border-radius: 6px; font-size: .6rem; }
+.detection-list code, .result-section > footer code { color: var(--text-secondary); font-size: .67rem; }
+.result-section > footer { margin-top: 14px; color: var(--muted); font-size: .66rem; }
+.no-detection { margin: 20px 0 0; padding: 18px; color: var(--muted); background: var(--canvas-soft); border: 1px dashed var(--border-strong); border-radius: 11px; text-align: center; }
 .history-section { margin-top: 18px; padding: clamp(20px, 3vw, 30px); }
 .history-head { margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .history-head p { margin: 7px 0 0; color: var(--muted); font-size: .78rem; }
@@ -456,14 +638,23 @@ onBeforeUnmount(() => {
 
 @media (max-width: 720px) {
   .history-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detection-list article { grid-template-columns: 32px minmax(0, 1fr) 58px; }
+  .detection-list article code { grid-column: 2 / -1; }
+  .confidence-warning { grid-column: 2 / -1; justify-self: start; }
 }
 
 @media (max-width: 620px) {
   .upload-side { padding: 12px; }
   .drop-zone, .preview, .preview img { min-height: 330px; height: 330px; }
   .scan-actions { align-items: stretch; flex-direction: column; }
-  .action-buttons { display: grid; grid-template-columns: auto 1fr; }
+  .action-buttons { display: grid; grid-template-columns: auto 1fr 1fr; }
   .action-buttons > :last-child { width: 100%; }
+  .detection-settings { grid-template-columns: 1fr; }
+  .detection-settings > button { width: 100%; }
+  .thresholds { grid-column: auto; grid-template-columns: 1fr; }
+  .result-head { align-items: flex-start; flex-direction: column; }
+  .result-head dl { width: 100%; }
+  .result-head dl div { min-width: 0; flex: 1; }
   .history-section { padding: 17px 12px; }
   .history-head { align-items: flex-start; }
   .refresh-button { min-width: 44px; padding: 0; justify-content: center; font-size: 0; }
@@ -476,5 +667,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 390px) {
   .history-grid { grid-template-columns: 1fr; }
+  .action-buttons { grid-template-columns: 1fr 1fr; }
+  .action-buttons .clear-button { grid-column: 1 / -1; }
 }
 </style>
