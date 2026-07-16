@@ -78,7 +78,7 @@ import {
   PhGauge as Gauge,
   PhLightning as Lightning,
   PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
-  PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle,
+  PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle, PhUsers as Users,
 } from '@phosphor-icons/vue'
 import { useUserStore } from '@/stores/user'
 import { getHealthApi } from '@/api/system'
@@ -109,6 +109,7 @@ const userNavItems = [
 ]
 const adminNavItems = [
   { path: '/admin/dashboard', label: '总览', icon: markRaw(Gauge) },
+  { path: '/admin/users', label: '用户', icon: markRaw(Users) },
 ]
 const navItems = computed(() => isAdminLayout.value ? adminNavItems : userNavItems)
 const brandTarget = computed(() => isAdminLayout.value ? '/admin/dashboard' : '/app/coach')
@@ -250,8 +251,8 @@ main { min-height: calc(100dvh - 78px); padding: 8px 30px 34px 4px; outline: non
   .app-rail nav a { min-height: 54px; min-width: 58px; padding: 5px 9px; font-size: .65rem; }
   .topbar { padding: 0 18px; }
   main { padding: 8px 16px 100px; }
-  .mode-admin .app-rail { display: none; }
-  .mode-admin main { padding-bottom: 34px; }
+  .mode-admin .app-rail nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mode-admin main { padding-bottom: 100px; }
 }
 @media (max-width: 620px) {
   .service-state, .account-button div, .wordmark span { display: none; }

@@ -27,6 +27,7 @@ const router = createRouter({
       meta: { requiresAdmin: true },
       children: [
         { path: 'dashboard', name: 'admin-dashboard', component: () => import('@/views/admin/AdminDashboardPage.vue'), meta: { title: '系统看板' } },
+        { path: 'users', name: 'admin-users', component: () => import('@/views/admin/AdminUsersPage.vue'), meta: { title: '用户管理' } },
       ],
     },
     { path: '/', redirect: '/app/coach' },
