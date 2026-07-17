@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  deriveTrainingStats, normalizeTrainingMetrics, normalizeTrainingModels,
-  normalizeTrainingTaskList,
+  deriveTrainingStats, deriveTrainingStatusDistribution, normalizeTrainingMetrics,
+  normalizeTrainingModels, normalizeTrainingStatusDistribution, normalizeTrainingTaskList,
 } from './trainingData'
 
 describe('Training API data adapters', () => {
@@ -29,5 +29,15 @@ describe('Training API data adapters', () => {
     expect(deriveTrainingStats([{ status: 'running' }, { status: 'failed' }], 9)).toEqual({
       total: 9, completed: 0, failed: 1, running: 1, pending: 0, paused: 0,
     })
+  })
+
+  it('normalizes and derives training status distributions', () => {
+    expect(normalizeTrainingStatusDistribution({ data: [
+      { status: 'COMPLETED', count: '5' }, { status: 'failed', count: 1 },
+    ] })).toEqual([
+      { status: 'completed', count: 5 }, { status: 'failed', count: 1 },
+    ])
+    expect(deriveTrainingStatusDistribution({ running: 2, completed: 4 }))
+      .toContainEqual({ status: 'running', count: 2 })
   })
 })

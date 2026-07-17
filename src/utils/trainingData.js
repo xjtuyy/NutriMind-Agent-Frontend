@@ -119,3 +119,20 @@ export function deriveTrainingStats(tasks = [], total = null) {
   })
   return { total: numberOrNull(total) ?? tasks.length, ...counts }
 }
+
+export function normalizeTrainingStatusDistribution(payload) {
+  const data = unwrapApiData(payload)
+  const items = Array.isArray(data) ? data : data?.items || data?.distribution || []
+  if (!Array.isArray(items)) return []
+  return items.map((item) => ({
+    status: text(item?.status).toLowerCase() || 'unknown',
+    count: numberOrNull(item?.count) ?? 0,
+  })).filter((item) => item.count >= 0)
+}
+
+export function deriveTrainingStatusDistribution(stats = {}) {
+  return ['running', 'pending', 'paused', 'completed', 'failed'].map((status) => ({
+    status,
+    count: numberOrNull(stats[status]) ?? 0,
+  }))
+}

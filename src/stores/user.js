@@ -12,7 +12,7 @@ function readUser() {
 }
 
 export const useUserStore = defineStore('user', {
-  state: () => ({ user: readUser() }),
+  state: () => ({ user: readUser(), sessionResolved: false }),
   getters: {
     isLoggedIn: (state) => Boolean(state.user),
     username: (state) => state.user?.username || '',
@@ -27,6 +27,10 @@ export const useUserStore = defineStore('user', {
       this.user = user
       localStorage.setItem(USER_KEY, JSON.stringify(user))
     },
+    mergeUser(user) {
+      if (!user || typeof user !== 'object') return
+      this.saveUser({ ...(this.user || {}), ...user })
+    },
     clearSession() {
       this.user = null
       localStorage.removeItem(USER_KEY)
@@ -35,11 +39,27 @@ export const useUserStore = defineStore('user', {
       const result = await loginApi(credentials)
       const user = await getCurrentUserApi()
       this.saveUser(user || result.user)
+      this.sessionResolved = true
     },
     async refreshUser() {
       if (this.isDemo) return
-      const user = await getCurrentUserApi()
+      const user = await getCurrentUserApi({ silent: true })
       this.saveUser(user)
+    },
+    async restoreSession() {
+      if (this.sessionResolved) return this.user
+      if (this.isDemo) {
+        this.sessionResolved = true
+        return this.user
+      }
+      try {
+        await this.refreshUser()
+      } catch {
+        this.clearSession()
+      } finally {
+        this.sessionResolved = true
+      }
+      return this.user
     },
     enterDemo(mode = 'user') {
       if (!import.meta.env.DEV) return
@@ -57,10 +77,11 @@ export const useUserStore = defineStore('user', {
         created_at: new Date().toISOString(),
         last_login_at: new Date().toISOString(),
       })
+      this.sessionResolved = true
     },
     async logout() {
-      if (this.isDemo) { this.clearSession(); return }
-      try { await logoutApi() } finally { this.clearSession() }
+      if (this.isDemo) { this.clearSession(); this.sessionResolved = true; return }
+      try { await logoutApi() } finally { this.clearSession(); this.sessionResolved = true }
     },
   },
 })

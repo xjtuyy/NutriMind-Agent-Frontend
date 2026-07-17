@@ -48,6 +48,8 @@ router.beforeEach(async (to) => {
   document.title = `${to.meta.title || '首页'} - NutriMind`
   const userStore = useUserStore()
 
+  await userStore.restoreSession()
+
   if (!to.meta.public && !userStore.isLoggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }

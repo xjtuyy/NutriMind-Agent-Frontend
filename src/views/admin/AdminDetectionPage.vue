@@ -28,10 +28,10 @@
         <h1 class="page-title">检测负载，集中掌握。</h1>
         <p class="page-description">观察目标检测任务的总体状态、处理积压、失败占比和模型推理效率。</p>
       </div>
-      <button class="refresh-action" type="button" :disabled="loading" @click="loadDetection">
-        <CircleNotch v-if="loading" class="spin" :size="18" weight="bold" />
+      <button class="refresh-action" type="button" :disabled="loading || taskLoading" @click="refreshAll">
+        <CircleNotch v-if="loading || taskLoading" class="spin" :size="18" weight="bold" />
         <ArrowsClockwise v-else :size="18" weight="bold" />
-        {{ loading ? '正在刷新' : '刷新数据' }}
+        {{ loading || taskLoading ? '正在刷新' : '刷新数据' }}
       </button>
     </header>
 
@@ -155,18 +155,97 @@
         <span class="scope-icon"><ShieldCheck :size="24" weight="duotone" /></span>
         <div>
           <span>数据范围</span>
-          <h2 id="scope-title" class="section-title">当前是聚合监控，不是任务操作台</h2>
-          <p>现有接口只提供任务数量、状态分布、目标总数和平均推理耗时，因此页面不会生成不存在的任务编号、用户归属、图片结果或操作按钮。</p>
+          <h2 id="scope-title" class="section-title">聚合监控与只读任务历史</h2>
+          <p>上方统计用于观察整体负载，下方历史由检测任务接口提供真实任务编号和结果详情；当前页面只读取任务，不提供文档之外的取消、重跑或删除操作。</p>
         </div>
       </section>
     </template>
+
+    <section class="history-panel surface" aria-labelledby="detection-history-title">
+      <header class="history-heading">
+        <div>
+          <span>Task history</span>
+          <h2 id="detection-history-title" class="section-title">检测任务历史</h2>
+          <p>查看后端保存的检测任务、处理状态与识别结果。</p>
+        </div>
+        <button type="button" :disabled="taskLoading" aria-label="刷新检测任务历史" @click="loadTasks">
+          <ArrowsClockwise :class="{ spin: taskLoading }" :size="18" />
+        </button>
+      </header>
+
+      <div v-if="taskLoading && !tasks.length" class="history-loading" aria-label="正在加载检测任务历史">
+        <div v-for="index in 4" :key="index" aria-hidden="true"><span class="skeleton wide" /><span class="skeleton" /><span class="skeleton" /></div>
+      </div>
+      <div v-else-if="taskError" class="history-feedback error" role="alert">
+        <WarningCircle :size="30" weight="duotone" /><b>检测任务历史暂时无法加载</b><p>{{ taskError }}</p><button type="button" @click="loadTasks">重新加载</button>
+      </div>
+      <div v-else-if="!tasks.length" class="history-feedback" role="status">
+        <ListChecks :size="32" weight="duotone" /><b>还没有检测任务</b><p>{{ isPreviewMode ? '预览模式不会生成真实任务历史。' : '用户完成第一次图片检测后，任务会出现在这里。' }}</p>
+      </div>
+      <template v-else>
+        <div class="history-table">
+          <table>
+            <thead><tr><th>任务编号</th><th>状态</th><th>场景</th><th>检测目标</th><th>推理耗时</th><th>创建时间</th><th><span class="sr-only">操作</span></th></tr></thead>
+            <tbody>
+              <tr v-for="task in tasks" :key="task.uuid">
+                <td><span class="task-id" :title="task.uuid || ''">{{ task.uuid || '--' }}</span></td>
+                <td><span class="task-status" :class="taskStatusMeta(task.status).tone"><i />{{ taskStatusMeta(task.status).label }}</span></td>
+                <td>{{ task.sceneName || (task.sceneId ? `场景 ${task.sceneId}` : '--') }}</td>
+                <td>{{ formatMetric(task.totalObjects) }}</td>
+                <td>{{ formatSeconds(task.inferenceTime) }}</td>
+                <td><time :datetime="task.createdAt || undefined">{{ formatTaskDate(task.createdAt) }}</time></td>
+                <td><button class="detail-action" type="button" :disabled="!task.uuid" @click="openTaskDetail(task)"><Eye :size="17" />详情</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="history-cards">
+          <article v-for="task in tasks" :key="task.uuid">
+            <header><span class="task-status" :class="taskStatusMeta(task.status).tone"><i />{{ taskStatusMeta(task.status).label }}</span><time :datetime="task.createdAt || undefined">{{ formatTaskDate(task.createdAt) }}</time></header>
+            <b :title="task.uuid || ''">{{ task.uuid || '任务编号未知' }}</b>
+            <dl><div><dt>场景</dt><dd>{{ task.sceneName || '--' }}</dd></div><div><dt>目标数</dt><dd>{{ formatMetric(task.totalObjects) }}</dd></div><div><dt>推理耗时</dt><dd>{{ formatSeconds(task.inferenceTime) }}</dd></div></dl>
+            <button class="detail-action" type="button" :disabled="!task.uuid" @click="openTaskDetail(task)"><Eye :size="17" />查看详情</button>
+          </article>
+        </div>
+
+        <footer class="history-pagination">
+          <span>共 {{ taskTotal }} 个任务 · 第 {{ taskPage }} / {{ taskTotalPages }} 页</span>
+          <div><button type="button" :disabled="taskPage <= 1 || taskLoading" aria-label="上一页" @click="changeTaskPage(taskPage - 1)"><CaretLeft :size="18" /></button><button type="button" :disabled="taskPage >= taskTotalPages || taskLoading" aria-label="下一页" @click="changeTaskPage(taskPage + 1)"><CaretRight :size="18" /></button></div>
+        </footer>
+      </template>
+    </section>
+
+    <el-drawer v-model="taskDetailVisible" class="detection-detail-drawer" size="min(560px, 100vw)" append-to-body destroy-on-close>
+      <template #header><div class="drawer-title"><span><Eye :size="19" /></span><div><b>检测任务详情</b><small>{{ selectedTask?.uuid || '正在读取任务' }}</small></div></div></template>
+      <div v-if="taskDetailLoading" class="drawer-feedback"><CircleNotch class="spin" :size="28" /><p>正在读取检测结果…</p></div>
+      <div v-else-if="taskDetailError" class="drawer-feedback error" role="alert"><WarningCircle :size="30" /><p>{{ taskDetailError }}</p><button type="button" @click="loadTaskDetail(selectedTask?.uuid)">重试</button></div>
+      <template v-else-if="selectedTask">
+        <section class="task-detail-summary">
+          <span class="task-status" :class="taskStatusMeta(selectedTask.status).tone"><i />{{ taskStatusMeta(selectedTask.status).label }}</span>
+          <h3>{{ selectedTask.sceneName || '未命名检测场景' }}</h3>
+          <p>{{ selectedTask.uuid || '--' }}</p>
+          <dl><div><dt>检测目标</dt><dd>{{ formatMetric(selectedTask.totalObjects) }}</dd></div><div><dt>推理耗时</dt><dd>{{ formatSeconds(selectedTask.inferenceTime) }}</dd></div><div><dt>创建时间</dt><dd>{{ formatTaskDate(selectedTask.createdAt) }}</dd></div><div><dt>完成时间</dt><dd>{{ formatTaskDate(selectedTask.completedAt || selectedTask.updatedAt) }}</dd></div></dl>
+        </section>
+        <img v-if="selectedTask.imageUrl" class="task-image" :src="selectedTask.imageUrl" alt="检测任务原始图片">
+        <p v-if="selectedTask.errorMessage" class="task-detail-error" role="alert"><WarningOctagon :size="18" />{{ selectedTask.errorMessage }}</p>
+        <section class="detection-results" aria-labelledby="detection-results-title">
+          <header><div><span>Objects</span><h3 id="detection-results-title">识别结果</h3></div><strong>{{ selectedTask.detections.length }}</strong></header>
+          <div v-if="!selectedTask.detections.length" class="result-empty">接口没有返回可展示的目标明细。</div>
+          <ul v-else>
+            <li v-for="item in selectedTask.detections" :key="item.id"><div><b>{{ item.classNameCn || item.className }}</b><small>{{ item.classNameCn ? item.className : '未提供英文类别' }}</small></div><span><strong>{{ formatConfidence(item.confidence) }}</strong><small>{{ formatBox(item.bbox) }}</small></span></li>
+          </ul>
+        </section>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { computed, markRaw, onMounted, ref } from 'vue'
 import {
-  PhArrowsClockwise as ArrowsClockwise, PhChartBar as ChartBar,
+  PhArrowsClockwise as ArrowsClockwise, PhCaretLeft as CaretLeft,
+  PhCaretRight as CaretRight, PhChartBar as ChartBar,
   PhCheckCircle as CheckCircle, PhCircleNotch as CircleNotch,
   PhCrosshair as Crosshair, PhEye as Eye, PhFlask as Flask,
   PhHourglassMedium as HourglassMedium, PhInfo as Info,
@@ -174,6 +253,7 @@ import {
   PhShieldCheck as ShieldCheck, PhTarget as Target, PhTimer as Timer,
   PhWarningCircle as WarningCircle, PhWarningOctagon as WarningOctagon,
 } from '@phosphor-icons/vue'
+import { getDetectionTaskDetailApi, getDetectionTasksApi } from '@/api/detection'
 import {
   getDetectionStatsApi, getDetectionStatusDistributionApi,
 } from '@/api/dashboard'
@@ -182,7 +262,11 @@ import {
   deriveDetectionDistribution, deriveDetectionStats,
   normalizeDetectionDistribution, normalizeDetectionStats,
 } from '@/utils/detectionData'
+import {
+  normalizeDetectionTaskDetail, normalizeDetectionTaskList,
+} from '@/utils/detectionTaskData'
 
+const taskPageSize = 20
 const userStore = useUserStore()
 const stats = ref(null)
 const distribution = ref([])
@@ -191,6 +275,15 @@ const loadError = ref('')
 const partialSource = ref('')
 const refreshedAt = ref(null)
 const previewState = ref('data')
+const tasks = ref([])
+const taskTotal = ref(0)
+const taskPage = ref(1)
+const taskLoading = ref(false)
+const taskError = ref('')
+const taskDetailVisible = ref(false)
+const taskDetailLoading = ref(false)
+const taskDetailError = ref('')
+const selectedTask = ref(null)
 const previewStates = [
   { value: 'data', label: '正常数据' },
   { value: 'empty', label: '空数据' },
@@ -200,6 +293,7 @@ const previewStates = [
 let previewLoadId = 0
 
 const isPreviewMode = computed(() => userStore.isAdminPreview)
+const taskTotalPages = computed(() => Math.max(1, Math.ceil(taskTotal.value / taskPageSize)))
 const distributionTotal = computed(() => distribution.value.reduce((sum, item) => sum + (Number.isFinite(item.count) ? item.count : 0), 0))
 const effectiveTotal = computed(() => Number.isFinite(stats.value?.total) ? stats.value.total : distributionTotal.value)
 const successRate = computed(() => rate(stats.value?.completed, effectiveTotal.value))
@@ -288,6 +382,33 @@ function formatPercent(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : '--'
 }
 
+function formatTaskDate(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(date)
+}
+
+function formatConfidence(value) {
+  return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '--'
+}
+
+function formatBox(value) {
+  return Array.isArray(value) ? `坐标 ${value.map((item) => Math.round(item)).join(', ')}` : '未提供坐标'
+}
+
+function taskStatusMeta(status) {
+  return ({
+    completed: { label: '已完成', tone: 'success' },
+    processing: { label: '处理中', tone: 'active' },
+    running: { label: '处理中', tone: 'active' },
+    pending: { label: '等待中', tone: 'pending' },
+    failed: { label: '失败', tone: 'danger' },
+  })[status] || { label: status || '未知', tone: 'unknown' }
+}
+
 async function loadDetection() {
   if (isPreviewMode.value) {
     await applyPreviewState()
@@ -331,6 +452,59 @@ async function loadDetection() {
   }
 }
 
+async function loadTasks() {
+  if (isPreviewMode.value) {
+    tasks.value = []
+    taskTotal.value = 0
+    taskError.value = ''
+    return
+  }
+  taskLoading.value = true
+  taskError.value = ''
+  try {
+    const normalized = normalizeDetectionTaskList(await getDetectionTasksApi({
+      page: taskPage.value, page_size: taskPageSize,
+    }, { silent: true }))
+    tasks.value = normalized.items
+    taskTotal.value = normalized.total
+    taskPage.value = normalized.page
+  } catch {
+    taskError.value = '没有读取到检测任务列表，请稍后重试。'
+  } finally {
+    taskLoading.value = false
+  }
+}
+
+function changeTaskPage(nextPage) {
+  if (nextPage < 1 || nextPage > taskTotalPages.value) return
+  taskPage.value = nextPage
+  loadTasks()
+}
+
+async function openTaskDetail(task) {
+  selectedTask.value = task
+  taskDetailVisible.value = true
+  await loadTaskDetail(task.uuid)
+}
+
+async function loadTaskDetail(uuid) {
+  if (!uuid || isPreviewMode.value) return
+  taskDetailLoading.value = true
+  taskDetailError.value = ''
+  try {
+    selectedTask.value = normalizeDetectionTaskDetail(await getDetectionTaskDetailApi(uuid, { silent: true }))
+  } catch {
+    taskDetailError.value = '检测任务详情暂时无法读取，请稍后重试。'
+  } finally {
+    taskDetailLoading.value = false
+  }
+}
+
+function refreshAll() {
+  loadDetection()
+  loadTasks()
+}
+
 async function loadPreviewPayload(useEmptyData) {
   if (!import.meta.env.DEV) return null
   const { dashboardPreviewStats, emptyDashboardPreviewStats } = await import('@/mocks/dashboardPreview')
@@ -367,7 +541,7 @@ function setPreviewState(state) {
   applyPreviewState()
 }
 
-onMounted(loadDetection)
+onMounted(refreshAll)
 </script>
 
 <style lang="scss" scoped>
@@ -452,6 +626,78 @@ onMounted(loadDetection)
 .health-details small { color: var(--muted); font-size: .65rem; }
 .health-details strong { color: var(--text); font-family: "Barlow Condensed"; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .health-details p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .64rem; }
+.history-panel { margin-top: 12px; padding: clamp(18px, 2.5vw, 26px); }
+.history-heading { margin-bottom: 15px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.history-heading > div > span, .detection-results header span { color: var(--primary); font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.history-heading h2 { margin-top: 5px; }
+.history-heading p { margin: 6px 0 0; color: var(--muted); font-size: .7rem; }
+.history-heading > button { width: 44px; height: 44px; display: grid; place-items: center; color: var(--text-secondary); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; }
+.history-heading > button:hover:not(:disabled) { color: var(--primary); border-color: rgba(159,226,75,.28); }
+.history-heading > button:disabled { opacity: .45; }
+.history-table { overflow-x: auto; }
+.history-table table { width: 100%; border-collapse: collapse; }
+.history-table th { padding: 11px 10px; color: var(--muted); border-bottom: 1px solid var(--border); font-size: .64rem; font-weight: 600; text-align: left; white-space: nowrap; }
+.history-table td { min-height: 64px; padding: 12px 10px; color: var(--text-secondary); border-bottom: 1px solid var(--border); font-size: .69rem; }
+.history-table tbody tr { transition: background 180ms var(--ease-out); }
+.history-table tbody tr:hover { background: rgba(255,255,255,.018); }
+.task-id { display: block; max-width: 180px; overflow: hidden; color: var(--text); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.task-status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .65rem; white-space: nowrap; }
+.task-status i { width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+.task-status.success { color: var(--primary); }
+.task-status.active { color: var(--accent); }
+.task-status.danger { color: #ff938d; }
+.task-status.pending { color: var(--text-secondary); }
+.detail-action { min-height: 40px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: var(--text-secondary); background: transparent; border: 1px solid transparent; border-radius: 8px; font-size: .65rem; }
+.detail-action:hover:not(:disabled) { color: var(--primary); background: var(--primary-soft); }
+.detail-action:disabled { opacity: .36; }
+.history-cards { display: none; }
+.history-pagination { margin-top: 12px; padding-top: 14px; display: flex; align-items: center; justify-content: flex-end; gap: 15px; color: var(--muted); border-top: 1px solid var(--border); font-size: .65rem; }
+.history-pagination > div { display: flex; gap: 6px; }
+.history-pagination button { width: 40px; height: 40px; display: grid; place-items: center; color: var(--text-secondary); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }
+.history-pagination button:disabled { opacity: .35; }
+.history-loading { display: grid; }
+.history-loading > div { min-height: 62px; padding: 10px; display: grid; grid-template-columns: 1.2fr .6fr .5fr; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); }
+.history-loading .skeleton { height: 12px; border-radius: 6px; }
+.history-loading .wide { width: 72%; }
+.history-feedback { min-height: 250px; display: grid; place-content: center; justify-items: center; gap: 7px; color: var(--muted); text-align: center; }
+.history-feedback.error { color: #ff938d; }
+.history-feedback b { color: var(--text); }
+.history-feedback p { max-width: 52ch; margin: 0; color: var(--muted); font-size: .7rem; line-height: 1.55; }
+.history-feedback button, .drawer-feedback button { min-height: 42px; margin-top: 8px; padding: 0 14px; color: #11160f; background: var(--primary); border: 0; border-radius: 8px; font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+:global(.detection-detail-drawer.el-drawer) { --el-drawer-bg-color: var(--surface); color: var(--text-secondary); background: var(--surface); border-left: 1px solid var(--border); }
+:global(.detection-detail-drawer .el-drawer__header) { margin: 0; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+:global(.detection-detail-drawer .el-drawer__body) { padding: 20px; }
+:global(.detection-detail-drawer .el-drawer__close-btn) { width: 44px; height: 44px; color: var(--muted); }
+.drawer-title { display: flex; align-items: center; gap: 10px; }
+.drawer-title > span { width: 38px; height: 38px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 9px; }
+.drawer-title > div { min-width: 0; display: grid; gap: 3px; }
+.drawer-title b { color: var(--text); font-size: .8rem; }
+.drawer-title small { max-width: 340px; overflow: hidden; color: var(--muted); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-feedback { min-height: 420px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--primary); text-align: center; }
+.drawer-feedback.error { color: #ff938d; }
+.drawer-feedback p { max-width: 42ch; margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.6; }
+.task-detail-summary { padding: 17px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 12px; }
+.task-detail-summary h3 { margin: 10px 0 3px; color: var(--text); font-family: "Barlow Condensed"; font-size: 1.5rem; }
+.task-detail-summary > p { margin: 0; overflow-wrap: anywhere; color: var(--muted); font-size: .64rem; }
+.task-detail-summary dl { margin: 17px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px; overflow: hidden; background: var(--border); border: 1px solid var(--border); border-radius: 9px; }
+.task-detail-summary dl div { min-height: 64px; padding: 10px; display: grid; align-content: center; gap: 4px; background: var(--surface); }
+.task-detail-summary dt { color: var(--muted); font-size: .61rem; }
+.task-detail-summary dd { margin: 0; color: var(--text-secondary); font-size: .7rem; }
+.task-image { width: 100%; max-height: 330px; margin-top: 12px; display: block; object-fit: contain; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 12px; }
+.task-detail-error { margin: 12px 0 0; padding: 11px; display: flex; align-items: flex-start; gap: 7px; color: #ff938d; background: rgba(240,103,95,.08); border-radius: 9px; font-size: .68rem; line-height: 1.55; }
+.detection-results { margin-top: 20px; }
+.detection-results header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.detection-results h3 { margin: 3px 0 0; color: var(--text); font-size: .95rem; }
+.detection-results header > strong { font-family: "Barlow Condensed"; font-size: 2rem; }
+.detection-results ul { margin: 12px 0 0; padding: 0; display: grid; gap: 7px; list-style: none; }
+.detection-results li { min-height: 64px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 9px; }
+.detection-results li > div, .detection-results li > span { min-width: 0; display: grid; gap: 3px; }
+.detection-results li > span { justify-items: end; }
+.detection-results li b { color: var(--text); font-size: .72rem; }
+.detection-results li strong { color: var(--primary); font-size: .72rem; }
+.detection-results li small { max-width: 250px; overflow: hidden; color: var(--muted); font-size: .61rem; text-overflow: ellipsis; white-space: nowrap; }
+.result-empty { min-height: 150px; display: grid; place-content: center; color: var(--muted); font-size: .7rem; text-align: center; }
 .scope-panel { margin-top: 12px; padding: 20px; display: flex; align-items: flex-start; gap: 14px; }
 .scope-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 10px; }
 .scope-panel > div > span { color: var(--primary); font-size: .68rem; font-weight: 600; }
@@ -471,7 +717,7 @@ onMounted(loadDetection)
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton, .spin { animation: none; }
-  .bar-track i, .refresh-action, .preview-state-switch button { transition: none; }
+  .bar-track i, .refresh-action, .preview-state-switch button, .history-table tbody tr { transition: none; }
 }
 @media (max-width: 980px) {
   .monitor-grid { grid-template-columns: 1fr; }
@@ -485,6 +731,17 @@ onMounted(loadDetection)
   .refresh-action { width: 100%; }
   .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .data-meta { justify-content: space-between; }
+  .history-table { display: none; }
+  .history-cards { display: grid; gap: 8px; }
+  .history-cards article { padding: 14px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 11px; }
+  .history-cards article > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .history-cards time { color: var(--muted); font-size: .62rem; }
+  .history-cards article > b { margin-top: 12px; display: block; overflow: hidden; color: var(--text); font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+  .history-cards dl { margin: 13px 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+  .history-cards dl div { display: grid; gap: 3px; }
+  .history-cards dt { color: var(--muted); font-size: .58rem; }
+  .history-cards dd { margin: 0; color: var(--text-secondary); font-size: .67rem; }
+  .history-cards .detail-action { width: 100%; border-color: var(--border); }
 }
 @media (max-width: 540px) {
   .preview-state-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -495,5 +752,11 @@ onMounted(loadDetection)
   .health-details { grid-template-columns: 1fr; }
   .scope-panel { padding: 16px 14px; }
   .scope-icon { width: 40px; height: 40px; }
+  .history-panel { padding: 16px 14px; }
+  .history-heading { align-items: flex-start; }
+  .history-cards dl { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .history-pagination { align-items: flex-start; flex-direction: column; }
+  .history-pagination > div { align-self: flex-end; }
+  .task-detail-summary dl { grid-template-columns: 1fr; }
 }
 </style>

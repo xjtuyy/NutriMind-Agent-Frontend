@@ -123,7 +123,6 @@ const serviceLabel = computed(() => ({
 const serviceIcon = computed(() => serviceStatus.value === 'offline' ? CloudX : CloudCheck)
 
 onMounted(() => {
-  userStore.refreshUser().catch(() => {})
   checkHealth()
 })
 

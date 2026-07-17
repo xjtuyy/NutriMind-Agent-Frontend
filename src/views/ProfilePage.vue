@@ -6,18 +6,38 @@
         <h1 class="page-title">目标不是数字，<br><em>是下一次选择。</em></h1>
         <p class="page-description">把身体目标和训练节奏交给 NutriMind，后续建议会围绕这套基准展开。</p>
       </div>
-      <span class="status-chip"><CheckCircle :size="16" weight="fill" /> 配置已同步至本机</span>
+      <span class="status-chip" :class="{ warning: profileError }" aria-live="polite">
+        <CircleNotch v-if="profileLoading" class="spin" :size="16" weight="bold" />
+        <WarningCircle v-else-if="profileError" :size="16" weight="fill" />
+        <CheckCircle v-else :size="16" weight="fill" />
+        {{ syncStatusText }}
+      </span>
     </header>
 
     <section class="profile-grid">
       <aside class="identity-card surface">
         <div class="identity-top">
-          <div class="avatar" aria-hidden="true">{{ userInitial }}</div>
+          <div class="avatar-editor">
+            <div class="avatar">
+              <img v-if="avatarUrl" :src="avatarUrl" :alt="`${displayUsername} 的头像`">
+              <span v-else aria-hidden="true">{{ userInitial }}</span>
+            </div>
+            <input ref="avatarInput" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="uploadAvatar">
+            <div class="avatar-actions">
+              <button type="button" :disabled="avatarSaving || userStore.isDemo" @click="avatarInput?.click()">
+                <CircleNotch v-if="avatarSaving" class="spin" :size="16" />
+                <Camera v-else :size="16" />{{ avatarUrl ? '更换' : '上传' }}
+              </button>
+              <button v-if="avatarUrl" class="danger" type="button" :disabled="avatarSaving || userStore.isDemo" @click="removeAvatar">
+                <Trash :size="16" />移除
+              </button>
+            </div>
+          </div>
           <span class="account-state"><span /> ACTIVE</span>
         </div>
         <span class="identity-kicker">ATHLETE PROFILE</span>
-        <h2>{{ userStore.username }}</h2>
-        <p>{{ userStore.user?.email || '未设置邮箱' }}</p>
+        <h2>{{ displayUsername }}</h2>
+        <p>{{ accountInfo.email || '未设置邮箱' }}</p>
         <span class="role">{{ roleText }}</span>
 
         <div class="goal-readout">
@@ -37,9 +57,9 @@
         </div>
 
         <dl>
-          <div><dt><IdentificationCard :size="17" /> 账户 ID</dt><dd>{{ userStore.user?.id || '--' }}</dd></div>
-          <div><dt><Phone :size="17" /> 手机</dt><dd>{{ userStore.user?.phone || '未填写' }}</dd></div>
-          <div><dt><ClockCounterClockwise :size="17" /> 最近登录</dt><dd>{{ formatDate(userStore.user?.last_login_at) }}</dd></div>
+          <div><dt><IdentificationCard :size="17" /> 账户 ID</dt><dd>{{ accountInfo.id || '--' }}</dd></div>
+          <div><dt><Phone :size="17" /> 手机</dt><dd>{{ accountInfo.phone || '未填写' }}</dd></div>
+          <div><dt><ClockCounterClockwise :size="17" /> 最近登录</dt><dd>{{ formatDate(accountInfo.last_login_at) }}</dd></div>
         </dl>
       </aside>
 
@@ -82,9 +102,19 @@
             <span>PERSONAL BASELINE</span>
             <h2 class="section-title">设置你的身体目标</h2>
           </div>
-          <span class="step-mark">01 / 02</span>
+          <span class="step-mark">01 / 03</span>
         </div>
 
+        <div v-if="profileLoading" class="profile-feedback" aria-label="正在加载个人资料">
+          <CircleNotch class="spin" :size="30" weight="bold" />
+          <p>正在同步个人资料与身体目标…</p>
+        </div>
+        <div v-else-if="profileError" class="profile-feedback error" role="alert">
+          <WarningCircle :size="32" weight="duotone" />
+          <p>{{ profileError }}</p>
+          <button type="button" @click="loadProfile">重新加载</button>
+        </div>
+        <template v-else>
         <section class="form-section" aria-labelledby="goal-mode-title">
           <div class="section-label">
             <span>01</span>
@@ -109,10 +139,24 @@
         <section class="form-section" aria-labelledby="body-data-title">
           <div class="section-label">
             <span>02</span>
-            <div><h3 id="body-data-title">身体与补给基准</h3><p>先给出可执行的初始值，后面可以随进度调整。</p></div>
+            <div><h3 id="body-data-title">账户与身体基准</h3><p>补全联系方式和身体信息，为营养建议提供统一基准。</p></div>
           </div>
           <div class="field-grid">
+            <FuelField v-model="profile.phone" label="手机号（可选）" type="tel" autocomplete="tel" placeholder="例如 13800138000" />
             <FuelField v-model="profile.currentWeight" label="当前体重（kg）" type="number" min="30" max="250" placeholder="例如 72" />
+            <FuelField v-model="profile.height" label="身高（cm，可选）" type="number" min="100" max="250" placeholder="例如 175" />
+            <FuelField v-model="profile.birthDate" label="出生日期（可选）" type="date" :max="today" />
+            <label class="select-field"><span>计算性别（可选）</span><select v-model="profile.sexForCalculation"><option value="">未设置</option><option value="male">男</option><option value="female">女</option><option value="unspecified">不指定</option></select></label>
+            <label class="select-field"><span>日常活动水平（可选）</span><select v-model="profile.activityLevel"><option value="">未设置</option><option value="sedentary">久坐</option><option value="light">轻度活动</option><option value="moderate">中等活动</option><option value="high">高活动量</option><option value="very_high">极高活动量</option></select></label>
+          </div>
+        </section>
+
+        <section class="form-section" aria-labelledby="nutrition-data-title">
+          <div class="section-label">
+            <span>03</span>
+            <div><h3 id="nutrition-data-title">补给与训练目标</h3><p>设置一套可执行的热量、蛋白质和训练节奏。</p></div>
+          </div>
+          <div class="field-grid">
             <FuelField v-model="profile.targetWeight" label="目标体重（kg）" type="number" min="30" max="250" placeholder="例如 66" />
             <FuelField v-model="profile.dailyCalories" label="每日热量目标（kcal）" type="number" min="1000" max="6000" placeholder="例如 1900" />
             <FuelField v-model="profile.proteinTarget" label="每日蛋白质（g）" type="number" min="30" max="400" placeholder="例如 130" />
@@ -135,9 +179,10 @@
         </section>
 
         <footer class="form-footer">
-          <div class="local-note"><LockKey :size="18" /><span><b>当前为前端本地配置</b>数据只保存在这台设备，不会修改后端账户资料。</span></div>
-          <FuelButton :loading="saving" @click="saveProfile">保存目标配置</FuelButton>
+          <div class="local-note"><CloudCheck :size="18" /><span><b>资料会同步到你的账户</b>保存后可在其他设备恢复；旧的本机目标配置会在首次同步后自动迁移。</span></div>
+          <FuelButton :loading="saving" :disabled="userStore.isDemo" @click="saveProfile">保存个人资料</FuelButton>
         </footer>
+        </template>
       </section>
 
       <section
@@ -185,38 +230,46 @@
 </template>
 
 <script setup>
-import { computed, markRaw, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, markRaw, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  PhBarbell as Barbell, PhCalendarDots as CalendarDots, PhCheckCircle as CheckCircle,
-  PhClockCounterClockwise as ClockCounterClockwise, PhHeartbeat as Heartbeat,
-  PhIdentificationCard as IdentificationCard, PhLockKey as LockKey,
-  PhPersonSimpleRun as PersonSimpleRun, PhPhone as Phone, PhTarget as Target,
-  PhTrendDown as TrendDown,
+  PhBarbell as Barbell, PhCalendarDots as CalendarDots, PhCamera as Camera,
+  PhCheckCircle as CheckCircle, PhCircleNotch as CircleNotch,
+  PhClockCounterClockwise as ClockCounterClockwise, PhCloudCheck as CloudCheck,
+  PhHeartbeat as Heartbeat, PhIdentificationCard as IdentificationCard,
+  PhLockKey as LockKey, PhPersonSimpleRun as PersonSimpleRun, PhPhone as Phone,
+  PhTarget as Target, PhTrash as Trash, PhTrendDown as TrendDown,
+  PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
 import FuelField from '@/components/ui/FuelField.vue'
 import { changePasswordApi } from '@/api/auth'
+import {
+  deleteAvatarApi, getProfileApi, updateProfileApi, uploadAvatarApi,
+} from '@/api/profile'
 import { useUserStore } from '@/stores/user'
+import {
+  emptyProfileForm, legacyProfileToPatch, normalizeAvatarResponse,
+  normalizeUserProfile, profileFormToPatch,
+} from '@/utils/profileData'
 
 const PROFILE_KEY = 'nutrimind_goal_profile'
-const defaults = {
-  mode: 'cut', currentWeight: 72, targetWeight: 66,
+const demoProfile = {
+  ...emptyProfileForm(), mode: 'cut', currentWeight: 72, targetWeight: 66,
   dailyCalories: 1900, proteinTarget: 130, trainingDays: 4,
-}
-
-function loadProfile() {
-  try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') }
-  } catch {
-    return { ...defaults }
-  }
+  height: 175, sexForCalculation: 'unspecified', activityLevel: 'moderate',
 }
 
 const userStore = useUserStore()
-const profile = reactive(loadProfile())
+const profile = reactive(emptyProfileForm())
+const serverAccount = ref(null)
+const profileLoading = ref(true)
+const profileError = ref('')
 const activeTab = ref('goals')
 const saving = ref(false)
+const avatarSaving = ref(false)
+const avatarInput = ref()
+const avatarVersion = ref(Date.now())
 const passwordSaving = ref(false)
 const passwordFormRef = ref()
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
@@ -243,19 +296,78 @@ const modes = [
   { value: 'maintain', label: '保持', description: '维持体态，提高饮食质量', icon: markRaw(PersonSimpleRun) },
 ]
 
-const roleText = computed(() => userStore.user?.roles?.join('、') || '普通用户')
-const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
-const modeLabel = computed(() => modes.find((item) => item.value === profile.mode)?.label || '自定义')
+const today = new Date().toISOString().slice(0, 10)
+const accountInfo = computed(() => ({ ...(userStore.user || {}), ...(serverAccount.value || {}) }))
+const displayUsername = computed(() => accountInfo.value.username || userStore.username || 'NutriMind 用户')
+const roleText = computed(() => accountInfo.value.roles?.join('、') || '普通用户')
+const userInitial = computed(() => displayUsername.value.slice(0, 1).toUpperCase() || 'N')
+const avatarUrl = computed(() => {
+  const source = accountInfo.value.avatar
+  if (!source) return ''
+  const separator = source.includes('?') ? '&' : '?'
+  return `${source}${separator}v=${avatarVersion.value}`
+})
+const syncStatusText = computed(() => {
+  if (profileLoading.value) return '正在同步账户资料'
+  if (profileError.value) return '账户资料同步失败'
+  if (userStore.isDemo) return '体验模式本地预览'
+  return '配置已同步至账户'
+})
+const modeLabel = computed(() => modes.find((item) => item.value === profile.mode)?.label || '尚未设置')
 const goalProgress = computed(() => {
   const fields = ['mode', 'currentWeight', 'targetWeight', 'dailyCalories', 'proteinTarget', 'trainingDays']
-  return Math.round(fields.filter((key) => Boolean(profile[key])).length / fields.length * 100)
+  return Math.round(fields.filter((key) => profile[key] !== '' && profile[key] !== null).length / fields.length * 100)
 })
 const trainingCopy = computed(() => {
   const days = Number(profile.trainingDays)
+  if (!days) return '选择每周计划训练的天数。'
   if (days <= 2) return '轻量节奏，优先建立稳定习惯。'
   if (days <= 4) return '均衡节奏，训练与恢复都有空间。'
   return '高频节奏，请特别关注睡眠与恢复。'
 })
+
+function readLegacyProfile() {
+  try {
+    const value = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null')
+    return value && typeof value === 'object' ? value : null
+  } catch {
+    return null
+  }
+}
+
+function applyNormalizedProfile(normalized) {
+  Object.assign(profile, emptyProfileForm(), normalized.form)
+  serverAccount.value = { ...(userStore.user || {}), ...normalized.account }
+  if (normalized.account?.id) userStore.mergeUser(normalized.account)
+}
+
+async function loadProfile() {
+  profileLoading.value = true
+  profileError.value = ''
+  if (userStore.isDemo) {
+    Object.assign(profile, demoProfile)
+    serverAccount.value = userStore.user
+    profileLoading.value = false
+    return
+  }
+
+  try {
+    let normalized = normalizeUserProfile(await getProfileApi({ silent: true }))
+    const legacy = readLegacyProfile()
+    if (!normalized.hasBodyProfile && !normalized.hasGoal && legacy) {
+      const migrated = await updateProfileApi(legacyProfileToPatch(legacy), { silent: true })
+      normalized = normalizeUserProfile(migrated)
+      if (!normalized.account.id) normalized = normalizeUserProfile(await getProfileApi({ silent: true }))
+      localStorage.removeItem(PROFILE_KEY)
+      ElMessage.success('已将这台设备上的旧目标配置迁移到账户')
+    }
+    applyNormalizedProfile(normalized)
+  } catch {
+    profileError.value = '没有读取到个人资料，请确认后端个人资料服务已部署后重试。'
+  } finally {
+    profileLoading.value = false
+  }
+}
 
 function formatDate(value) {
   if (!value) return '暂无记录'
@@ -264,17 +376,91 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(date)
 }
 
+function numberInRange(value, min, max, integer = false) {
+  const number = Number(value)
+  return Number.isFinite(number) && number >= min && number <= max && (!integer || Number.isInteger(number))
+}
+
+function validateProfile() {
+  if (!modes.some((item) => item.value === profile.mode)) return '请选择当前最重要的目标'
+  if (!numberInRange(profile.currentWeight, 30, 250)) return '当前体重需要在 30～250 kg 之间'
+  if (!numberInRange(profile.targetWeight, 30, 250)) return '目标体重需要在 30～250 kg 之间'
+  if (!numberInRange(profile.dailyCalories, 1000, 6000, true)) return '每日热量需要是 1000～6000 的整数'
+  if (!numberInRange(profile.proteinTarget, 30, 400, true)) return '每日蛋白质需要是 30～400 的整数'
+  if (!numberInRange(profile.trainingDays, 1, 7, true)) return '请选择每周 1～7 天的训练频率'
+  if (profile.height !== '' && !numberInRange(profile.height, 100, 250)) return '身高需要在 100～250 cm 之间'
+  if (profile.birthDate && profile.birthDate > today) return '出生日期不能晚于今天'
+  return ''
+}
+
 async function saveProfile() {
-  const required = [profile.currentWeight, profile.targetWeight, profile.dailyCalories, profile.proteinTarget]
-  if (required.some((value) => !value || Number(value) <= 0)) {
-    ElMessage.warning('请填写完整且有效的身体与补给数据')
+  const validationMessage = validateProfile()
+  if (validationMessage) {
+    ElMessage.warning(validationMessage)
     return
   }
   saving.value = true
-  await new Promise((resolve) => setTimeout(resolve, 360))
-  localStorage.setItem(PROFILE_KEY, JSON.stringify({ ...profile }))
-  saving.value = false
-  ElMessage.success('目标配置已保存到当前设备')
+  try {
+    let normalized = normalizeUserProfile(await updateProfileApi(profileFormToPatch(profile), { silent: true }))
+    if (!normalized.account.id) normalized = normalizeUserProfile(await getProfileApi({ silent: true }))
+    applyNormalizedProfile(normalized)
+    localStorage.removeItem(PROFILE_KEY)
+    ElMessage.success('个人资料与身体目标已同步')
+  } catch {
+    ElMessage.error('个人资料保存失败，请检查填写内容后重试')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function uploadAvatar(event) {
+  const input = event.target
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    ElMessage.warning('头像仅支持 JPG、PNG 或 WEBP 格式')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('头像文件不能超过 5MB')
+    return
+  }
+
+  avatarSaving.value = true
+  try {
+    const result = normalizeAvatarResponse(await uploadAvatarApi(file, { silent: true }))
+    if (result.avatar) {
+      serverAccount.value = { ...accountInfo.value, avatar: result.avatar }
+      userStore.mergeUser({ avatar: result.avatar })
+      avatarVersion.value = Date.now()
+    } else {
+      await loadProfile()
+    }
+    ElMessage.success('头像已更新')
+  } catch {
+    ElMessage.error('头像上传失败，请检查文件后重试')
+  } finally {
+    avatarSaving.value = false
+  }
+}
+
+async function removeAvatar() {
+  try {
+    await ElMessageBox.confirm('移除当前头像后将恢复为用户名首字母，是否继续？', '移除头像', {
+      type: 'warning', confirmButtonText: '确认移除', cancelButtonText: '取消',
+    })
+    avatarSaving.value = true
+    await deleteAvatarApi({ silent: true })
+    serverAccount.value = { ...accountInfo.value, avatar: '' }
+    userStore.mergeUser({ avatar: null })
+    avatarVersion.value = Date.now()
+    ElMessage.success('头像已移除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error('头像移除失败，请稍后重试')
+  } finally {
+    avatarSaving.value = false
+  }
 }
 
 async function changePassword() {
@@ -295,12 +481,15 @@ async function changePassword() {
     passwordSaving.value = false
   }
 }
+
+onMounted(loadProfile)
 </script>
 
 <style lang="scss" scoped>
 .profile-page { display: grid; gap: 22px; }
 .page-header { min-height: 235px; padding: clamp(26px, 4vw, 56px); display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; background: linear-gradient(110deg, rgba(23,28,24,.98), rgba(15,18,16,.9)), radial-gradient(circle at 83% 18%, rgba(242,117,63,.17), transparent 34%); border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .page-header em { color: var(--accent); font-style: normal; }
+.page-header .status-chip.warning { color: #ff938d; border-color: rgba(240, 103, 95, .28); }
 .eyebrow { margin-bottom: 17px; display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: .74rem; font-weight: 700; letter-spacing: .13em; }
 .profile-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
 .identity-card { grid-row: 1 / span 2; padding: 24px; }
@@ -314,7 +503,14 @@ async function changePassword() {
 .tab-panel { grid-column: 2; animation: tab-in 220ms var(--ease-out); }
 @keyframes tab-in { from { opacity: 0; transform: translateY(7px); } }
 .identity-top { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
-.avatar { width: 76px; height: 76px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
+.avatar-editor { display: grid; gap: 11px; }
+.avatar { width: 76px; height: 76px; overflow: hidden; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-actions { display: flex; gap: 6px; }
+.avatar-actions button { min-height: 44px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: var(--text-secondary); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 8px; font-size: .66rem; transition: color 180ms var(--ease-out), border-color 180ms var(--ease-out), background 180ms var(--ease-out); }
+.avatar-actions button:hover:not(:disabled) { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.3); }
+.avatar-actions button.danger:hover:not(:disabled) { color: #ff938d; background: rgba(240,103,95,.08); border-color: rgba(240,103,95,.25); }
+.avatar-actions button:disabled { opacity: .42; }
 .account-state { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
 .account-state span { width: 7px; height: 7px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 0 4px rgba(159,226,75,.09); }
 .identity-kicker { color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
@@ -359,6 +555,9 @@ async function changePassword() {
 .mode-grid button b { color: var(--text); }
 .mode-grid button span { color: var(--muted); font-size: .7rem; line-height: 1.45; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+.select-field { display: grid; gap: 8px; color: var(--text-secondary); font-size: .86rem; font-weight: 500; }
+.select-field select { width: 100%; min-height: 48px; padding: 0 13px; color: var(--text); color-scheme: dark; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 10px; outline: none; transition: border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
+.select-field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .training-days { margin-top: 22px; display: grid; gap: 10px; }
 .training-days > span { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .84rem; font-weight: 500; }
 .training-days > span svg { color: var(--primary); }
@@ -371,6 +570,17 @@ async function changePassword() {
 .local-note { max-width: 440px; display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .local-note svg { flex: 0 0 auto; color: var(--primary); }
 .local-note b { display: block; color: var(--text-secondary); }
+.profile-feedback { min-height: 390px; display: grid; place-content: center; justify-items: center; gap: 11px; color: var(--primary); text-align: center; }
+.profile-feedback p { max-width: 52ch; margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+.profile-feedback.error { color: #ff938d; }
+.profile-feedback button { min-height: 44px; margin-top: 5px; padding: 0 15px; color: #11160f; background: var(--primary); border: 1px solid var(--primary); border-radius: 9px; font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.spin { animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+  .avatar-actions button, .select-field select { transition: none; }
+}
 @media (max-width: 1040px) {
   .profile-grid { grid-template-columns: 1fr; }
   .identity-card { grid-row: auto; }

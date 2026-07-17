@@ -1,0 +1,34 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/utils/request', () => ({
+  default: { post: vi.fn() },
+}))
+
+import request from '@/utils/request'
+import { sendChatImageApi, sendChatMessageApi } from './chat'
+
+describe('chat api', () => {
+  beforeEach(() => request.post.mockReset())
+
+  it('sends the documented text chat payload', () => {
+    sendChatMessageApi({ sessionId: 'meal-1', message: '分析这一餐' })
+    expect(request.post).toHaveBeenCalledWith('/chat/message', {
+      session_id: 'meal-1',
+      message: '分析这一餐',
+    }, expect.objectContaining({ silent: true, timeout: 120000 }))
+  })
+
+  it('uses multipart fields for image chat without setting content-type manually', () => {
+    const file = new Blob(['image'], { type: 'image/jpeg' })
+    sendChatImageApi(file, { sessionId: 'meal-image', message: '估算热量' })
+    const [, formData, config] = request.post.mock.calls[0]
+    expect(request.post.mock.calls[0][0]).toBe('/chat/image')
+    expect(formData).toBeInstanceOf(FormData)
+    expect(formData.get('file')).toBeInstanceOf(Blob)
+    expect(formData.get('file').size).toBe(file.size)
+    expect(formData.get('message')).toBe('估算热量')
+    expect(formData.get('session_id')).toBe('meal-image')
+    expect(config).toEqual(expect.objectContaining({ silent: true, timeout: 180000 }))
+    expect(config.headers).toBeUndefined()
+  })
+})
