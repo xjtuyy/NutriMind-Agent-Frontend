@@ -16,7 +16,8 @@
       </nav>
 
       <button v-if="!isAdminLayout" class="rail-profile" aria-label="打开个人资料" @click="router.push('/app/profile')">
-        {{ userInitial }}
+        <img v-if="visibleAvatarUrl" :src="visibleAvatarUrl" :alt="`${userStore.username || '用户'}的头像`" @error="handleAvatarError">
+        <span v-else aria-hidden="true">{{ userInitial }}</span>
       </button>
       <span v-else class="rail-role" aria-label="管理员空间">AD</span>
     </aside>
@@ -46,7 +47,10 @@
           </span>
           <el-dropdown trigger="click" @command="handleCommand">
             <button class="account-button" aria-label="打开账户菜单">
-              <span>{{ userInitial }}</span>
+              <span class="account-avatar">
+                <img v-if="visibleAvatarUrl" :src="visibleAvatarUrl" :alt="`${userStore.username || '用户'}的头像`" @error="handleAvatarError">
+                <span v-else aria-hidden="true">{{ userInitial }}</span>
+              </span>
               <div><b>{{ userStore.username }}</b><small>{{ isAdminLayout ? 'Admin Console' : 'Performance Fuel' }}</small></div>
               <CaretDown :size="15" weight="bold" />
             </button>
@@ -70,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed, markRaw, onMounted, ref } from 'vue'
+import { computed, markRaw, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
@@ -101,6 +105,7 @@ const mode = computed(() => props.mode)
 const isAdminLayout = computed(() => props.mode === 'admin')
 const serviceStatus = ref(userStore.isDemo ? 'preview' : 'checking')
 const railHidden = ref(readSidebarPreference())
+const avatarLoadFailed = ref(false)
 const userNavItems = [
   { path: '/app/coach', label: '教练', icon: markRaw(Sparkle) },
   { path: '/app/scan', label: '照片', icon: markRaw(ScanSmiley) },
@@ -117,10 +122,13 @@ const navItems = computed(() => isAdminLayout.value ? adminNavItems : userNavIte
 const brandTarget = computed(() => isAdminLayout.value ? '/admin/dashboard' : '/app/coach')
 const brandLabel = computed(() => isAdminLayout.value ? 'NutriMind 管理控制台' : 'NutriMind 用户空间')
 const userInitial = computed(() => userStore.username.slice(0, 1).toUpperCase() || 'N')
+const visibleAvatarUrl = computed(() => avatarLoadFailed.value ? '' : userStore.avatarUrl)
 const serviceLabel = computed(() => ({
   preview: '预览数据', checking: '检查服务', online: '服务在线', offline: '服务离线',
 })[serviceStatus.value])
 const serviceIcon = computed(() => serviceStatus.value === 'offline' ? CloudX : CloudCheck)
+
+watch(() => userStore.avatarUrl, () => { avatarLoadFailed.value = false })
 
 onMounted(() => {
   checkHealth()
@@ -138,6 +146,10 @@ async function checkHealth() {
   } catch {
     serviceStatus.value = 'offline'
   }
+}
+
+function handleAvatarError() {
+  avatarLoadFailed.value = true
 }
 
 function toggleRail() {
@@ -219,7 +231,8 @@ async function handleCommand(command) {
 }
 .app-rail nav a:hover { color: var(--text); background: rgba(255,255,255,.04); transform: translateY(-1px); }
 .app-rail nav a.router-link-active { color: var(--primary); background: var(--primary-soft); }
-.rail-profile { width: 46px; height: 46px; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 600; }
+.rail-profile { width: 46px; height: 46px; padding: 0; overflow: hidden; display: grid; place-items: center; color: var(--text); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 12px; font-weight: 600; }
+.rail-profile img { width: 100%; height: 100%; object-fit: cover; }
 .rail-role { width: 46px; height: 46px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border: 1px solid rgba(159, 226, 75, .18); border-radius: 12px; font-family: "Barlow Condensed"; font-size: .74rem; font-weight: 700; }
 .app-stage { min-width: 0; flex: 1; margin-left: 128px; transition: margin-left 260ms var(--ease-out); }
 .app-layout.rail-hidden .app-stage { margin-left: 18px; }
@@ -233,7 +246,8 @@ async function handleCommand(command) {
 .service-state.offline { color: #ff938d; background: rgba(240, 103, 95, .1); }
 .account-button { min-height: 48px; padding: 4px 7px; display: flex; align-items: center; gap: 9px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 11px; }
 .account-button:hover { background: var(--surface); border-color: var(--border); }
-.account-button > span { width: 36px; height: 36px; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 9px; font-weight: 700; }
+.account-avatar { width: 36px; height: 36px; overflow: hidden; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 9px; font-weight: 700; }
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .account-button div { min-width: 106px; display: grid; gap: 1px; text-align: left; }
 .account-button b { max-width: 130px; overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
 .account-button small { color: var(--muted); font-size: .7rem; }

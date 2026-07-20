@@ -432,7 +432,7 @@ async function uploadAvatar(event) {
     const result = normalizeAvatarResponse(await uploadAvatarApi(file, { silent: true }))
     if (result.avatar) {
       serverAccount.value = { ...accountInfo.value, avatar: result.avatar }
-      userStore.mergeUser({ avatar: result.avatar })
+      userStore.setAvatar(result.avatar)
       avatarVersion.value = Date.now()
     } else {
       await loadProfile()
@@ -453,7 +453,7 @@ async function removeAvatar() {
     avatarSaving.value = true
     await deleteAvatarApi({ silent: true })
     serverAccount.value = { ...accountInfo.value, avatar: '' }
-    userStore.mergeUser({ avatar: null })
+    userStore.setAvatar(null)
     avatarVersion.value = Date.now()
     ElMessage.success('头像已移除')
   } catch (error) {

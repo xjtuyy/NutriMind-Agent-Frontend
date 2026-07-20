@@ -44,4 +44,19 @@ describe('User session restoration', () => {
     expect(store.sessionResolved).toBe(true)
     expect(localStorage.getItem('nutrimind_user')).toBeNull()
   })
+
+  it('updates the shared avatar URL and refreshes an unchanged backend path', () => {
+    const store = useUserStore()
+    store.saveUser({ id: 18, username: 'zhangsan', avatar: '/uploads/avatar.jpg' })
+
+    const firstUrl = store.avatarUrl
+    store.setAvatar('/uploads/avatar.jpg')
+
+    expect(store.avatarUrl).toContain('/uploads/avatar.jpg?avatar_v=')
+    expect(store.avatarUrl).not.toBe(firstUrl)
+    expect(JSON.parse(localStorage.getItem('nutrimind_user')).avatar).toBe('/uploads/avatar.jpg')
+
+    store.setAvatar(null)
+    expect(store.avatarUrl).toBe('')
+  })
 })

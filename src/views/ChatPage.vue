@@ -80,9 +80,12 @@
             <div class="composer-footer">
               <button class="attach" type="button" :disabled="generating" aria-label="选择食物图片" title="选择食物图片" @click="fileInput?.click()"><Camera :size="20" /></button>
               <span>{{ selectedImage ? '图片会与当前问题一起发送' : 'Enter 发送，Shift + Enter 换行' }}</span>
-              <FuelButton class="send-button" :arrow="false" :disabled="!question.trim() || generating" @click="sendMessage">
-                <CircleNotch v-if="generating" class="spin" :size="19" weight="bold" />
-                <PaperPlaneTilt v-else :size="19" weight="fill" />
+              <button v-if="generating" class="stop-button" type="button" @click="stopGeneration">
+                <Stop :size="18" weight="fill" />
+                停止生成
+              </button>
+              <FuelButton v-else class="send-button" :arrow="false" :disabled="!question.trim()" @click="sendMessage">
+                <PaperPlaneTilt :size="19" weight="fill" />
                 发送
               </FuelButton>
             </div>
@@ -116,9 +119,9 @@ import { markRaw, nextTick, onBeforeUnmount, ref } from 'vue'
 import {
   PhArrowRight as ArrowRight, PhArrowsClockwise as ArrowsClockwise,
   PhBookOpenText as BookOpenText, PhBowlFood as BowlFood, PhCamera as Camera,
-  PhCircleNotch as CircleNotch, PhForkKnife as ForkKnife, PhLightning as Lightning,
+  PhForkKnife as ForkKnife, PhLightning as Lightning,
   PhPaperPlaneTilt as PaperPlaneTilt, PhPersonSimpleRun as PersonSimpleRun,
-  PhScan as Scan, PhSidebarSimple as SidebarSimple, PhSparkle as Sparkle, PhTarget as Target,
+  PhScan as Scan, PhSidebarSimple as SidebarSimple, PhSparkle as Sparkle, PhStop as Stop, PhTarget as Target,
   PhWarningCircle as WarningCircle, PhWrench as Wrench, PhX as X,
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
@@ -140,6 +143,8 @@ const contextHidden = ref(readContextPreference())
 const sessionId = ref(createSessionId())
 const messageImageUrls = new Set()
 let requestGeneration = 0
+let activeRequestController = null
+let demoTimerId = null
 const CONTEXT_KEY = 'nutrimind_coach_context_hidden'
 const firstMessage = { role: 'assistant', content: '你好，我是 Nutri 教练。告诉我你的目标、训练安排或刚刚吃了什么。' }
 const messages = ref([{ ...firstMessage }])
@@ -246,6 +251,49 @@ function demoResponse(hasImage) {
   }
 }
 
+function waitForDemo(signal) {
+  return new Promise((resolve, reject) => {
+    demoTimerId = window.setTimeout(() => {
+      demoTimerId = null
+      resolve()
+    }, 700)
+    signal.addEventListener('abort', () => {
+      if (demoTimerId) window.clearTimeout(demoTimerId)
+      demoTimerId = null
+      const error = new Error('The request was aborted')
+      error.name = 'AbortError'
+      reject(error)
+    }, { once: true })
+  })
+}
+
+function cancelActiveRequest(markStopped = false) {
+  const wasGenerating = generating.value
+  activeRequestController?.abort()
+  activeRequestController = null
+  if (demoTimerId) window.clearTimeout(demoTimerId)
+  demoTimerId = null
+  requestGeneration += 1
+  generating.value = false
+
+  if (!markStopped || !wasGenerating) return
+  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+    if (!messages.value[index].pending) continue
+    messages.value[index] = {
+      role: 'assistant',
+      content: '**已停止生成**\n\n本次回复已由你中断，可以修改问题后重新发送。',
+      stopped: true,
+    }
+    break
+  }
+  composerError.value = ''
+  scrollToEnd()
+}
+
+function stopGeneration() {
+  cancelActiveRequest(true)
+}
+
 function requestErrorMessage(error, hasImage) {
   const status = error?.response?.status
   if (status === 413) return '图片超过服务端限制，请压缩后重新选择。'
@@ -274,15 +322,24 @@ async function sendMessage() {
   scrollToEnd()
 
   const generation = ++requestGeneration
+  const controller = new AbortController()
+  activeRequestController = controller
   try {
     let payload
     if (userStore.isDemo) {
-      await new Promise((resolve) => window.setTimeout(resolve, 700))
+      await waitForDemo(controller.signal)
       payload = demoResponse(Boolean(imageFile))
     } else if (imageFile) {
-      payload = await sendChatImageApi(imageFile, { sessionId: sessionId.value, message: content })
+      payload = await sendChatImageApi(
+        imageFile,
+        { sessionId: sessionId.value, message: content },
+        { signal: controller.signal },
+      )
     } else {
-      payload = await sendChatMessageApi({ sessionId: sessionId.value, message: content })
+      payload = await sendChatMessageApi(
+        { sessionId: sessionId.value, message: content },
+        { signal: controller.signal },
+      )
     }
     if (generation !== requestGeneration) return
 
@@ -312,13 +369,15 @@ async function sendMessage() {
     composerError.value = errorMessage
     scrollToEnd()
   } finally {
-    if (generation === requestGeneration) generating.value = false
+    if (generation === requestGeneration) {
+      generating.value = false
+      activeRequestController = null
+    }
   }
 }
 
 function resetChat() {
-  requestGeneration += 1
-  generating.value = false
+  cancelActiveRequest(false)
   question.value = ''
   composerError.value = ''
   removeSelectedImage()
@@ -329,7 +388,7 @@ function resetChat() {
 }
 
 onBeforeUnmount(() => {
-  requestGeneration += 1
+  cancelActiveRequest(false)
   removeSelectedImage()
   releaseMessageImages()
 })
@@ -403,6 +462,8 @@ onBeforeUnmount(() => {
 .attach:disabled { cursor: not-allowed; opacity: .4; }
 .composer-footer > span { color: var(--muted); font-size: .68rem; }
 .send-button { min-height: 44px; margin-left: auto; }
+.stop-button { min-height: 44px; margin-left: auto; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #ffc8c8; background: rgba(240, 103, 95, .1); border: 1px solid rgba(240, 103, 95, .28); border-radius: 9px; font-size: .76rem; font-weight: 600; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.stop-button:hover { color: #fff; background: rgba(240, 103, 95, .18); border-color: rgba(240, 103, 95, .5); }
 .composer-error { margin: 8px 2px 0; display: flex; align-items: flex-start; justify-content: center; gap: 6px; color: #ffc8c8; font-size: .68rem; line-height: 1.5; }
 .composer-error svg { flex: 0 0 auto; margin-top: 1px; }
 .disclaimer { margin: 9px 0 0; display: block; color: var(--muted); font-size: .7rem; text-align: center; }
@@ -437,7 +498,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .quick-grid button, .context-toggle, .attach { transition: none; }
+  .quick-grid button, .context-toggle, .attach, .stop-button { transition: none; }
   .typing i, .spin { animation: none; }
 }
 </style>

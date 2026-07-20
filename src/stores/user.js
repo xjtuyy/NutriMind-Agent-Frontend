@@ -11,8 +11,15 @@ function readUser() {
   } catch { return null }
 }
 
+function versionedAvatarUrl(avatar, revision) {
+  if (typeof avatar !== 'string' || !avatar.trim()) return ''
+  const source = avatar.trim()
+  const separator = source.includes('?') ? '&' : '?'
+  return `${source}${separator}avatar_v=${revision}`
+}
+
 export const useUserStore = defineStore('user', {
-  state: () => ({ user: readUser(), sessionResolved: false }),
+  state: () => ({ user: readUser(), sessionResolved: false, avatarRevision: Date.now() }),
   getters: {
     isLoggedIn: (state) => Boolean(state.user),
     username: (state) => state.user?.username || '',
@@ -21,6 +28,7 @@ export const useUserStore = defineStore('user', {
     isAdmin: (state) => isAdminUser(state.user),
     roleResolved: (state) => isUserRoleResolved(state.user),
     defaultRoute: (state) => getDefaultRouteForUser(state.user),
+    avatarUrl: (state) => versionedAvatarUrl(state.user?.avatar, state.avatarRevision),
   },
   actions: {
     saveUser(user) {
@@ -30,6 +38,12 @@ export const useUserStore = defineStore('user', {
     mergeUser(user) {
       if (!user || typeof user !== 'object') return
       this.saveUser({ ...(this.user || {}), ...user })
+    },
+    setAvatar(avatar) {
+      const normalizedAvatar = typeof avatar === 'string' && avatar.trim() ? avatar.trim() : null
+      this.mergeUser({ avatar: normalizedAvatar })
+      const now = Date.now()
+      this.avatarRevision = now > this.avatarRevision ? now : this.avatarRevision + 1
     },
     clearSession() {
       this.user = null
