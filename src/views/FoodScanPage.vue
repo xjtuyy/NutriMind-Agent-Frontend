@@ -2,9 +2,9 @@
   <div class="page-shell scan-page">
     <header class="page-head">
       <div>
-        <span class="status-chip"><ScanSmiley :size="16" weight="bold" /> 智能目标检测</span>
+        <span class="status-chip"><ScanSmiley :size="16" weight="bold" /> AI 餐食识别</span>
         <h1 class="page-title">拍下这一餐，看清画面里的食物。</h1>
-        <p class="page-description">上传 JPG、PNG 或 WEBP 图片，调用检测模型识别食物目标；也可以只把原图保存到个人影像库。</p>
+        <p class="page-description">上传 JPG、PNG 或 WEBP 图片，识别并标出照片里的食物；也可以只把原图保存到个人影像库。</p>
       </div>
     </header>
 
@@ -83,39 +83,41 @@
             <button type="button" class="save-button" :disabled="!selectedFile || detecting || uploading" @click="savePhoto">
               <CircleNotch v-if="uploading" class="spin" :size="17" />{{ uploading ? '保存中' : '仅保存原图' }}
             </button>
-            <FuelButton :disabled="!selectedFile || uploading" :loading="detecting" @click="detectPhoto">开始检测</FuelButton>
+            <FuelButton :disabled="!selectedFile || uploading" :loading="detecting" @click="detectPhoto">识别照片</FuelButton>
           </div>
         </div>
       </div>
 
       <aside class="capability-side surface">
         <div class="capability-icon"><CloudCheck :size="25" weight="duotone" /></div>
-        <h2 class="section-title">当前可以做什么</h2>
-        <p>检测 API 已接入；照片保存与检测是两个独立操作，你可以按需要选择。</p>
+        <h2 class="section-title">上传后，你可以</h2>
+        <p>选择保存到餐食记录，或直接识别照片内容；两项操作互不影响。</p>
         <ul>
-          <li><CheckCircle :size="19" weight="fill" /><span><b>保存原始照片</b><small>上传后同步到你的账户</small></span></li>
-          <li><CheckCircle :size="19" weight="fill" /><span><b>查看拍照历史</b><small>按页浏览之前保存的餐食</small></span></li>
-          <li><CheckCircle :size="19" weight="fill" /><span><b>识别并标记目标</b><small>返回类别、置信度和目标框</small></span></li>
+          <li><ImagesSquare :size="20" weight="duotone" /><span><b>保存餐食照片</b><small>原图会同步至账户，方便以后回看</small></span></li>
+          <li><ClockCounterClockwise :size="20" weight="duotone" /><span><b>回顾历史餐食</b><small>在拍照记录中查看之前保存的照片</small></span></li>
+          <li><ScanSmiley :size="20" weight="duotone" /><span><b>识别照片内容</b><small>自动标出识别到的食物，并显示参考可信度</small></span></li>
         </ul>
       </aside>
     </section>
 
     <section v-if="detectionResult" class="result-section surface" aria-labelledby="result-title" aria-live="polite">
       <header class="result-head">
-        <div><span><Crosshair :size="17" weight="bold" /> Detection result</span><h2 id="result-title" class="section-title">检测结果</h2></div>
-        <dl><div><dt>目标数量</dt><dd>{{ detectionResult.totalObjects }}</dd></div><div><dt>推理耗时</dt><dd>{{ formatInferenceTime(detectionResult.inferenceTime) }}</dd></div></dl>
+        <div><span><Crosshair :size="17" weight="bold" /> 识别概览</span><h2 id="result-title" class="section-title">识别结果</h2></div>
+        <dl><div><dt>识别数量</dt><dd>{{ detectionResult.totalObjects }}</dd></div><div><dt>处理耗时</dt><dd>{{ formatInferenceTime(detectionResult.inferenceTime) }}</dd></div></dl>
       </header>
-      <p v-if="!detectionResult.detections.length" class="no-detection">当前阈值下没有检测到目标。可以降低置信度阈值后重试。</p>
+      <p v-if="!detectionResult.detections.length" class="no-detection">暂时没有识别到照片内容。你可以换一张更清晰的照片，或在高级参数中降低可信度阈值后重试。</p>
       <div v-else class="detection-list">
         <article v-for="(item, index) in detectionResult.detections" :key="`${item.className}-${index}`">
           <span class="target-index">{{ String(index + 1).padStart(2, '0') }}</span>
           <div><b>{{ item.classNameCn || item.className || '未知类别' }}</b><small>{{ item.className || 'unknown' }}</small></div>
-          <strong>{{ formatConfidence(item.confidence) }}</strong>
+          <div class="confidence-value"><small>参考可信度</small><strong>{{ formatConfidence(item.confidence) }}</strong></div>
           <span v-if="item.lowConfidence" class="confidence-warning">低置信度</span>
-          <code>{{ formatBbox(item.bbox) }}</code>
         </article>
       </div>
-      <footer>任务编号：<code>{{ detectionResult.taskUuid || '未返回' }}</code></footer>
+      <details class="result-technical">
+        <summary>查看技术详情</summary>
+        <p>任务编号：<code>{{ detectionResult.taskUuid || '未返回' }}</code></p>
+      </details>
     </section>
 
     <section class="history-section surface" aria-labelledby="history-title">
@@ -202,8 +204,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   PhArrowsClockwise as ArrowsClockwise, PhCameraPlus as CameraPlus,
-  PhCaretLeft as CaretLeft, PhCaretRight as CaretRight, PhCheckCircle as CheckCircle,
-  PhCircleNotch as CircleNotch, PhCloudCheck as CloudCheck, PhCrosshair as Crosshair,
+  PhCaretLeft as CaretLeft, PhCaretRight as CaretRight, PhCircleNotch as CircleNotch,
+  PhClockCounterClockwise as ClockCounterClockwise, PhCloudCheck as CloudCheck, PhCrosshair as Crosshair,
   PhImageBroken as ImageBroken, PhImagesSquare as ImagesSquare, PhScanSmiley as ScanSmiley,
   PhSlidersHorizontal as SlidersHorizontal, PhTrash as Trash, PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
@@ -490,11 +492,6 @@ function formatInferenceTime(value) {
   return number >= 1000 ? `${(number / 1000).toFixed(2)} s` : `${Math.round(number)} ms`
 }
 
-function formatBbox(bbox) {
-  if (!Array.isArray(bbox)) return '坐标未返回'
-  return `[${bbox.map((value) => Math.round(value)).join(', ')}]`
-}
-
 onMounted(() => {
   loadHistory()
   loadScenes()
@@ -550,7 +547,7 @@ onBeforeUnmount(() => {
 .capability-icon { width: 52px; height: 52px; margin-bottom: 22px; display: grid; place-items: center; color: var(--primary); background: var(--primary-soft); border-radius: 13px; }
 .capability-side > p { margin: 8px 0 26px; color: var(--muted); font-size: .82rem; line-height: 1.65; }
 .capability-side ul { margin: 0; padding: 0; display: grid; list-style: none; }
-.capability-side li { padding: 17px 0; display: grid; grid-template-columns: 24px 1fr; gap: 11px; color: var(--primary); border-bottom: 1px solid var(--border); }
+.capability-side li { padding: 17px 0; display: grid; grid-template-columns: 24px 1fr; align-items: start; gap: 11px; color: var(--primary); border-bottom: 1px solid var(--border); }
 .capability-side li:last-child { border-bottom: 0; }
 .capability-side li.pending { color: var(--warning); }
 .capability-side li span { display: grid; gap: 4px; }
@@ -564,15 +561,21 @@ onBeforeUnmount(() => {
 .result-head dt { color: var(--muted); font-size: .62rem; }
 .result-head dd { margin: 3px 0 0; font-family: "Barlow Condensed", MiSans, sans-serif; font-size: 1.22rem; font-weight: 700; }
 .detection-list { margin-top: 20px; display: grid; gap: 8px; }
-.detection-list article { min-width: 0; padding: 12px 14px; display: grid; grid-template-columns: 38px minmax(120px, 1fr) 64px auto minmax(140px, auto); align-items: center; gap: 12px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 11px; }
+.detection-list article { min-width: 0; padding: 12px 14px; display: grid; grid-template-columns: 38px minmax(120px, 1fr) minmax(86px, auto) auto; align-items: center; gap: 12px; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 11px; }
 .target-index { color: var(--primary); font-family: "Barlow Condensed", sans-serif; font-size: 1.12rem; font-weight: 700; }
 .detection-list article > div { min-width: 0; display: grid; gap: 2px; }
 .detection-list article b { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
 .detection-list article small { color: var(--muted); font-size: .64rem; }
 .detection-list article strong { color: var(--primary); font-family: "Barlow Condensed", sans-serif; font-size: 1.08rem; }
+.confidence-value { display: grid; justify-items: end; gap: 2px; }
+.confidence-value small { color: var(--muted); font-size: .6rem; }
 .confidence-warning { padding: 4px 7px; color: var(--warning); background: rgba(246, 173, 85, .08); border-radius: 6px; font-size: .6rem; }
-.detection-list code, .result-section > footer code { color: var(--text-secondary); font-size: .67rem; }
-.result-section > footer { margin-top: 14px; color: var(--muted); font-size: .66rem; }
+.result-technical { margin-top: 16px; padding-top: 12px; color: var(--muted); border-top: 1px solid var(--border); font-size: .66rem; }
+.result-technical summary { width: fit-content; min-height: 44px; padding: 0 4px; display: flex; align-items: center; cursor: pointer; color: var(--text-secondary); }
+.result-technical summary:hover { color: var(--primary); }
+.result-technical summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.result-technical p { margin: 7px 0 0; }
+.result-technical code { color: var(--text-secondary); font-size: .67rem; }
 .no-detection { margin: 20px 0 0; padding: 18px; color: var(--muted); background: var(--canvas-soft); border: 1px dashed var(--border-strong); border-radius: 11px; text-align: center; }
 .history-section { margin-top: 18px; padding: clamp(20px, 3vw, 30px); }
 .history-head { margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -639,7 +642,6 @@ onBeforeUnmount(() => {
 @media (max-width: 720px) {
   .history-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detection-list article { grid-template-columns: 32px minmax(0, 1fr) 58px; }
-  .detection-list article code { grid-column: 2 / -1; }
   .confidence-warning { grid-column: 2 / -1; justify-self: start; }
 }
 
