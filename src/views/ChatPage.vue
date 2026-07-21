@@ -7,6 +7,10 @@
         <p class="page-description">围绕减脂、增肌、训练补给和食物选择，获得更容易执行的建议。</p>
       </div>
       <div class="page-actions">
+        <button class="history-toggle" type="button" aria-label="打开历史对话" @click="historyOpen = true">
+          <ClockCounterClockwise :size="18" weight="bold" />
+          历史对话
+        </button>
         <button
           class="context-toggle"
           type="button"
@@ -21,7 +25,59 @@
       </div>
     </header>
 
-    <section class="chat-workspace surface" :class="{ 'context-hidden': contextHidden }">
+    <section class="chat-workspace surface" :class="{ 'context-hidden': contextHidden, 'history-open': historyOpen }">
+      <button v-if="historyOpen" class="history-scrim" type="button" aria-label="关闭历史对话" @click="historyOpen = false" />
+
+      <aside class="session-panel" aria-label="历史对话">
+        <header>
+          <div><span>对话记录</span><small>最近 {{ sessions.length }} 条</small></div>
+          <button type="button" :disabled="sessionsLoading" aria-label="刷新历史对话" title="刷新历史对话" @click="loadSessions()">
+            <ArrowsClockwise :size="17" :class="{ spin: sessionsLoading }" />
+          </button>
+          <button class="session-close" type="button" aria-label="关闭历史对话" @click="historyOpen = false"><X :size="17" /></button>
+        </header>
+
+        <div v-if="sessionsLoading && !sessions.length" class="session-loading" aria-label="正在加载历史对话">
+          <i v-for="number in 4" :key="number" />
+        </div>
+        <div v-else-if="sessionsError" class="session-state" role="alert">
+          <WarningCircle :size="24" />
+          <p>{{ sessionsError }}</p>
+          <button type="button" @click="loadSessions()">重新加载</button>
+        </div>
+        <div v-else-if="!sessions.length" class="session-state">
+          <ChatCircleDots :size="28" weight="thin" />
+          <p>还没有历史对话<br><small>发送第一个问题后会自动保存。</small></p>
+        </div>
+        <div v-else class="session-list">
+          <article v-for="session in sessions" :key="session.sessionId" :class="{ active: session.sessionId === activeSessionId }">
+            <button
+              class="session-select"
+              type="button"
+              :disabled="loadingSessionId === session.sessionId"
+              :aria-current="session.sessionId === activeSessionId ? 'true' : undefined"
+              @click="openSession(session.sessionId)"
+            >
+              <CircleNotch v-if="loadingSessionId === session.sessionId" class="spin" :size="16" />
+              <ChatCircleDots v-else :size="17" />
+              <span><b>{{ session.title }}</b><small>{{ formatSessionTime(session.updatedAt) }}</small></span>
+            </button>
+            <button
+              class="session-delete"
+              type="button"
+              :disabled="deletingSessionId === session.sessionId"
+              :aria-label="`删除对话：${session.title}`"
+              title="删除对话"
+              @click="removeSession(session)"
+            >
+              <CircleNotch v-if="deletingSessionId === session.sessionId" class="spin" :size="15" />
+              <Trash v-else :size="15" />
+            </button>
+          </article>
+        </div>
+        <footer><span />最多显示后端返回的 50 条会话</footer>
+      </aside>
+
       <div class="conversation">
         <div ref="messageArea" class="messages" aria-live="polite">
           <section v-if="messages.length === 1" class="welcome">
@@ -37,7 +93,7 @@
             </div>
           </section>
 
-          <article v-for="(message, index) in messages" :key="index" :class="['message', message.role]">
+          <article v-for="(message, index) in messages" :key="message.id || index" :class="['message', message.role]">
             <span v-if="message.role === 'assistant'" class="message-avatar"><Lightning :size="17" weight="fill" /></span>
             <div class="message-body">
               <small>{{ message.role === 'assistant' ? 'Nutri 教练' : '你' }}</small>
@@ -115,19 +171,24 @@
 </template>
 
 <script setup>
-import { markRaw, nextTick, onBeforeUnmount, ref } from 'vue'
+import { markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   PhArrowRight as ArrowRight, PhArrowsClockwise as ArrowsClockwise,
   PhBookOpenText as BookOpenText, PhBowlFood as BowlFood, PhCamera as Camera,
-  PhForkKnife as ForkKnife, PhLightning as Lightning,
+  PhChatCircleDots as ChatCircleDots, PhCircleNotch as CircleNotch,
+  PhClockCounterClockwise as ClockCounterClockwise, PhForkKnife as ForkKnife, PhLightning as Lightning,
   PhPaperPlaneTilt as PaperPlaneTilt, PhPersonSimpleRun as PersonSimpleRun,
   PhScan as Scan, PhSidebarSimple as SidebarSimple, PhSparkle as Sparkle, PhStop as Stop, PhTarget as Target,
-  PhWarningCircle as WarningCircle, PhWrench as Wrench, PhX as X,
+  PhTrash as Trash, PhWarningCircle as WarningCircle, PhWrench as Wrench, PhX as X,
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
-import { sendChatImageApi, sendChatMessageApi } from '@/api/chat'
+import {
+  createChatSessionApi, deleteChatSessionApi, getChatSessionApi, getChatSessionsApi,
+  sendChatImageApi, sendChatMessageApi,
+} from '@/api/chat'
 import { useUserStore } from '@/stores/user'
-import { normalizeChatResponse } from '@/utils/chatData'
+import { normalizeChatResponse, normalizeChatSession, normalizeChatSessions } from '@/utils/chatData'
 import { renderMarkdown } from '@/utils/markdown'
 
 const userStore = useUserStore()
@@ -141,6 +202,14 @@ const selectedImageUrl = ref('')
 const composerError = ref('')
 const contextHidden = ref(readContextPreference())
 const sessionId = ref(createSessionId())
+const activeSessionId = ref('')
+const sessionPersisted = ref(false)
+const sessions = ref([])
+const sessionsLoading = ref(false)
+const sessionsError = ref('')
+const loadingSessionId = ref('')
+const deletingSessionId = ref('')
+const historyOpen = ref(false)
 const messageImageUrls = new Set()
 let requestGeneration = 0
 let activeRequestController = null
@@ -148,6 +217,20 @@ let demoTimerId = null
 const CONTEXT_KEY = 'nutrimind_coach_context_hidden'
 const firstMessage = { role: 'assistant', content: '你好，我是 Nutri 教练。告诉我你的目标、训练安排或刚刚吃了什么。' }
 const messages = ref([{ ...firstMessage }])
+const demoSessions = [
+  {
+    session_id: 'demo-history-1', title: '训练后的晚餐怎么安排',
+    created_at: '2026-07-20T18:20:00', updated_at: '2026-07-20T18:26:00',
+    messages: [
+      { id: 101, role: 'user', content: '晚上力量训练结束后，减脂期晚餐怎么安排？', tool_calls: [], created_at: '2026-07-20T18:20:00' },
+      { id: 102, role: 'assistant', content: '**训练后晚餐**\n\n优先安排优质蛋白质、适量主食和蔬菜，例如鸡胸肉、米饭与绿叶菜。', tool_calls: [{ name: 'search_nutrition_knowledge', args: {} }], created_at: '2026-07-20T18:26:00' },
+    ],
+  },
+  {
+    session_id: 'demo-history-2', title: '早餐蛋白质补充',
+    created_at: '2026-07-18T08:10:00', updated_at: '2026-07-18T08:14:00', messages: [],
+  },
+]
 const prompts = [
   { title: '安排减脂晚餐', detail: '控制热量，也保证饱腹感', question: '我正在减脂，今晚还剩 680 千卡，晚饭怎么安排？', icon: markRaw(ForkKnife) },
   { title: '优化训练补给', detail: '训练前后应该怎样吃', question: '我晚上六点半力量训练，训练前后分别吃什么？', icon: markRaw(PersonSimpleRun) },
@@ -168,6 +251,74 @@ function toggleContext() {
   contextHidden.value = !contextHidden.value
   try { localStorage.setItem(CONTEXT_KEY, String(contextHidden.value)) }
   catch { /* Keep the preference for this page session. */ }
+}
+
+function formatSessionTime(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '时间未知'
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) {
+    return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(date)
+  }
+  return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date)
+}
+
+async function loadSessions(background = false) {
+  if (!background) sessionsLoading.value = true
+  sessionsError.value = ''
+  try {
+    const payload = userStore.isDemo ? demoSessions : await getChatSessionsApi()
+    sessions.value = normalizeChatSessions(payload)
+  } catch {
+    if (!background) sessionsError.value = '历史对话暂时无法读取，请稍后重试。'
+  } finally {
+    if (!background) sessionsLoading.value = false
+  }
+}
+
+async function openSession(targetSessionId) {
+  if (!targetSessionId || loadingSessionId.value) return
+  cancelActiveRequest(false)
+  loadingSessionId.value = targetSessionId
+  composerError.value = ''
+  try {
+    const payload = userStore.isDemo
+      ? demoSessions.find((item) => item.session_id === targetSessionId)
+      : await getChatSessionApi(targetSessionId)
+    const result = normalizeChatSession(payload)
+    if (!result.sessionId) throw new Error('missing session')
+    releaseMessageImages()
+    sessionId.value = result.sessionId
+    activeSessionId.value = result.sessionId
+    sessionPersisted.value = true
+    messages.value = [{ ...firstMessage }, ...result.messages]
+    question.value = ''
+    removeSelectedImage()
+    historyOpen.value = false
+    nextTick(resizeComposer)
+    scrollToEnd()
+  } catch {
+    ElMessage.error('历史对话加载失败，请重新选择')
+  } finally {
+    loadingSessionId.value = ''
+  }
+}
+
+async function removeSession(session) {
+  try {
+    await ElMessageBox.confirm(`删除“${session.title}”后将无法恢复，是否继续？`, '删除历史对话', {
+      type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消',
+    })
+    deletingSessionId.value = session.sessionId
+    if (!userStore.isDemo) await deleteChatSessionApi(session.sessionId)
+    sessions.value = sessions.value.filter((item) => item.sessionId !== session.sessionId)
+    if (activeSessionId.value === session.sessionId) resetChat()
+    ElMessage.success(userStore.isDemo ? '预览模式：已模拟删除对话' : '历史对话已删除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error('历史对话删除失败')
+  } finally {
+    deletingSessionId.value = ''
+  }
 }
 
 function resizeComposer() {
@@ -336,6 +487,19 @@ async function sendMessage() {
         { signal: controller.signal },
       )
     } else {
+      if (!sessionPersisted.value) {
+        try {
+          const created = normalizeChatSession(await createChatSessionApi(content.slice(0, 50), { signal: controller.signal }))
+          if (created.sessionId) {
+            sessionId.value = created.sessionId
+            activeSessionId.value = created.sessionId
+            sessionPersisted.value = true
+          }
+        } catch (error) {
+          if (controller.signal.aborted) throw error
+          // /chat/message can still auto-create the session and degrade gracefully if persistence is unavailable.
+        }
+      }
       payload = await sendChatMessageApi(
         { sessionId: sessionId.value, message: content },
         { signal: controller.signal },
@@ -345,6 +509,10 @@ async function sendMessage() {
 
     const result = normalizeChatResponse(payload, sessionId.value)
     sessionId.value = result.sessionId || sessionId.value
+    if (!imageFile) {
+      activeSessionId.value = sessionId.value
+      sessionPersisted.value = true
+    }
     messages.value[responseIndex] = {
       role: 'assistant',
       content: result.response,
@@ -358,6 +526,7 @@ async function sendMessage() {
       ] : null,
     }
     scrollToEnd()
+    if (!imageFile) loadSessions(true)
   } catch (error) {
     if (generation !== requestGeneration) return
     const errorMessage = requestErrorMessage(error, Boolean(imageFile))
@@ -383,9 +552,14 @@ function resetChat() {
   removeSelectedImage()
   releaseMessageImages()
   sessionId.value = createSessionId()
+  activeSessionId.value = ''
+  sessionPersisted.value = false
+  historyOpen.value = false
   nextTick(resizeComposer)
   messages.value = [{ ...firstMessage }]
 }
+
+onMounted(loadSessions)
 
 onBeforeUnmount(() => {
   cancelActiveRequest(false)
@@ -400,11 +574,44 @@ onBeforeUnmount(() => {
 .page-head { margin-bottom: 24px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .page-head .status-chip { margin-bottom: 16px; }
 .page-actions { display: flex; align-items: center; gap: 9px; }
-.context-toggle { min-height: 48px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 10px; font-size: .8rem; font-weight: 600; }
-.context-toggle:hover { color: var(--primary); background: var(--surface); border-color: rgba(159,226,75,.32); }
-.chat-workspace { height: max(680px, calc(100dvh - 220px)); display: grid; grid-template-columns: minmax(0, 1fr) 290px; overflow: hidden; }
-.chat-workspace.context-hidden { grid-template-columns: minmax(0, 1fr); }
+.context-toggle, .history-toggle { min-height: 48px; padding: 0 14px; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 10px; font-size: .8rem; font-weight: 600; }
+.context-toggle { display: inline-flex; }
+.history-toggle { display: none; }
+.context-toggle:hover, .history-toggle:hover { color: var(--primary); background: var(--surface); border-color: rgba(159,226,75,.32); }
+.chat-workspace { position: relative; height: max(680px, calc(100dvh - 220px)); display: grid; grid-template-columns: 240px minmax(0, 1fr) 290px; overflow: hidden; }
+.chat-workspace.context-hidden { grid-template-columns: 240px minmax(0, 1fr); }
 .context-hidden .context-panel { display: none; }
+.history-scrim { display: none; }
+.session-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: rgba(13,16,15,.62); border-right: 1px solid var(--border); }
+.session-panel > header { min-height: 68px; padding: 12px 11px 12px 16px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border); }
+.session-panel > header > div { min-width: 0; margin-right: auto; display: grid; gap: 2px; }
+.session-panel > header span { color: var(--text); font-size: .82rem; font-weight: 650; }
+.session-panel > header small { color: var(--muted); font-size: .64rem; }
+.session-panel > header button, .session-close { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 9px; }
+.session-panel > header button:hover:not(:disabled) { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.16); }
+.session-panel > header button:disabled { cursor: wait; opacity: .5; }
+.session-close { display: none !important; }
+.session-list { min-height: 0; flex: 1; padding: 8px; display: grid; align-content: start; gap: 5px; overflow-y: auto; overscroll-behavior: contain; }
+.session-list article { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) 40px; align-items: center; border: 1px solid transparent; border-radius: 10px; transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+.session-list article:hover { background: rgba(255,255,255,.025); border-color: var(--border); }
+.session-list article.active { background: var(--primary-soft); border-color: rgba(159,226,75,.2); }
+.session-select { min-width: 0; min-height: 64px; padding: 9px 4px 9px 10px; display: grid; grid-template-columns: 18px minmax(0,1fr); align-items: center; gap: 8px; color: var(--muted); background: transparent; border: 0; text-align: left; }
+.session-select > span { min-width: 0; display: grid; gap: 5px; }
+.session-select b { overflow: hidden; color: var(--text-secondary); font-size: .73rem; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.session-select small { color: var(--muted); font-size: .61rem; }
+.session-list article.active .session-select, .session-list article.active .session-select b { color: var(--primary); }
+.session-select:disabled, .session-delete:disabled { cursor: wait; opacity: .6; }
+.session-delete { width: 40px; height: 40px; display: grid; place-items: center; color: var(--muted); background: transparent; border: 0; border-radius: 8px; }
+.session-delete:hover:not(:disabled) { color: #ffc8c8; background: rgba(240,103,95,.1); }
+.session-loading { min-height: 0; flex: 1; padding: 13px 9px; display: grid; align-content: start; gap: 8px; }
+.session-loading i { height: 58px; background: linear-gradient(90deg, rgba(255,255,255,.025), rgba(255,255,255,.065), rgba(255,255,255,.025)); background-size: 200% 100%; border-radius: 10px; animation: session-shimmer 1.2s linear infinite; }
+.session-state { min-height: 0; flex: 1; padding: 28px 18px; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--muted); text-align: center; }
+.session-state p { margin: 0; font-size: .73rem; line-height: 1.6; }
+.session-state small { font-size: .65rem; }
+.session-state button { min-height: 40px; padding: 0 12px; color: var(--primary); background: var(--primary-soft); border: 1px solid rgba(159,226,75,.2); border-radius: 8px; font-size: .7rem; }
+.session-panel > footer { min-height: 40px; padding: 0 14px; display: flex; align-items: center; gap: 8px; color: var(--muted); border-top: 1px solid var(--border); font-size: .58rem; }
+.session-panel > footer span { width: 5px; height: 5px; background: var(--primary); border-radius: 50%; }
+@keyframes session-shimmer { to { background-position: -200% 0; } }
 .conversation { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .messages { min-height: 0; flex: 1; padding: 30px clamp(20px, 5vw, 74px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-behavior: smooth; }
 .welcome { max-width: 820px; margin: 5vh auto 42px; text-align: center; }
@@ -480,7 +687,18 @@ onBeforeUnmount(() => {
 .source-box { margin-top: 26px; padding: 15px; display: flex; gap: 10px; color: var(--primary); background: var(--primary-soft); border-radius: 10px; }
 .source-box b { color: var(--text); font-size: .78rem; }.source-box p { margin: 4px 0 0; color: var(--muted); font-size: .68rem; line-height: 1.5; }
 
-@media (max-width: 1050px) { .chat-workspace { grid-template-columns: 1fr; }.context-panel, .context-toggle { display: none; } }
+@media (max-width: 1180px) {
+  .chat-workspace, .chat-workspace.context-hidden { grid-template-columns: 240px minmax(0, 1fr); }
+  .context-panel, .context-toggle { display: none; }
+}
+@media (max-width: 900px) {
+  .history-toggle { display: inline-flex; }
+  .chat-workspace, .chat-workspace.context-hidden { grid-template-columns: minmax(0, 1fr); }
+  .session-panel { position: absolute; z-index: 12; inset: 0 auto 0 0; width: min(320px, calc(100% - 36px)); background: var(--canvas-soft); box-shadow: 18px 0 48px rgba(0,0,0,.32); transform: translateX(-105%); transition: transform 220ms var(--ease-out); }
+  .history-open .session-panel { transform: translateX(0); }
+  .session-close { display: grid !important; }
+  .history-scrim { position: absolute; z-index: 11; inset: 0; display: block; background: rgba(2,4,3,.58); border: 0; }
+}
 @media (max-width: 760px) {
   .page-head { align-items: flex-start; flex-direction: column; }
   .page-head > :last-child { width: 100%; }
@@ -498,7 +716,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .quick-grid button, .context-toggle, .attach, .stop-button { transition: none; }
-  .typing i, .spin { animation: none; }
+  .quick-grid button, .context-toggle, .history-toggle, .session-panel, .session-list article, .attach, .stop-button { transition: none; }
+  .typing i, .spin, .session-loading i { animation: none; }
 }
 </style>

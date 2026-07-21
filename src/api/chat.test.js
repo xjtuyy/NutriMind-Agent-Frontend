@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/utils/request', () => ({
-  default: { post: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 
 import request from '@/utils/request'
-import { sendChatImageApi, sendChatMessageApi } from './chat'
+import {
+  createChatSessionApi, deleteChatSessionApi, getChatSessionApi, getChatSessionsApi,
+  sendChatImageApi, sendChatMessageApi,
+} from './chat'
 
 describe('chat api', () => {
-  beforeEach(() => request.post.mockReset())
+  beforeEach(() => {
+    request.get.mockReset()
+    request.post.mockReset()
+    request.delete.mockReset()
+  })
 
   it('sends the documented text chat payload', () => {
     const controller = new AbortController()
@@ -32,5 +39,17 @@ describe('chat api', () => {
     expect(formData.get('session_id')).toBe('meal-image')
     expect(config).toEqual(expect.objectContaining({ silent: true, timeout: 180000, signal: controller.signal }))
     expect(config.headers).toBeUndefined()
+  })
+
+  it('uses the documented persistent session routes', () => {
+    createChatSessionApi('训练计划')
+    getChatSessionsApi()
+    getChatSessionApi('meal/a b')
+    deleteChatSessionApi('meal/a b')
+
+    expect(request.post).toHaveBeenCalledWith('/chat/sessions', { title: '训练计划' }, expect.objectContaining({ silent: true }))
+    expect(request.get).toHaveBeenNthCalledWith(1, '/chat/sessions', expect.objectContaining({ silent: true }))
+    expect(request.get).toHaveBeenNthCalledWith(2, '/chat/sessions/meal%2Fa%20b', expect.objectContaining({ silent: true }))
+    expect(request.delete).toHaveBeenCalledWith('/chat/sessions/meal%2Fa%20b', expect.objectContaining({ silent: true }))
   })
 })

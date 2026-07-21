@@ -17,6 +17,17 @@ function normalizeToolCalls(value) {
   }))
 }
 
+function normalizeChatMessage(item = {}, index = 0) {
+  const role = item?.role === 'user' ? 'user' : 'assistant'
+  return {
+    id: item?.id ?? `message-${index}`,
+    role,
+    content: text(item?.content || item?.message),
+    toolCalls: normalizeToolCalls(item?.tool_calls || item?.toolCalls),
+    createdAt: text(item?.created_at || item?.createdAt),
+  }
+}
+
 function normalizeDetections(value) {
   if (!Array.isArray(value)) return []
   return value.map((item, index) => ({
@@ -40,4 +51,24 @@ export function normalizeChatResponse(payload, fallbackSessionId = '') {
     toolCalls: normalizeToolCalls(data.tool_calls),
     analysisResult: data.analysis_result ?? null,
   }
+}
+
+export function normalizeChatSession(payload = {}) {
+  const data = payload?.data ?? payload
+  const messages = Array.isArray(data?.messages)
+    ? data.messages.map(normalizeChatMessage)
+    : []
+  return {
+    sessionId: text(data?.session_id || data?.sessionId),
+    title: text(data?.title) || '新对话',
+    createdAt: text(data?.created_at || data?.createdAt),
+    updatedAt: text(data?.updated_at || data?.updatedAt),
+    messages,
+  }
+}
+
+export function normalizeChatSessions(payload) {
+  const data = payload?.data ?? payload
+  const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+  return items.map(normalizeChatSession).filter((item) => item.sessionId)
 }
