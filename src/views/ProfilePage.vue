@@ -92,6 +92,7 @@
 
       <section
         v-if="activeTab === 'goals'"
+        ref="goalPanel"
         id="goals-panel"
         class="goal-panel surface tab-panel"
         role="tabpanel"
@@ -99,10 +100,10 @@
       >
         <div class="panel-heading">
           <div>
-            <span>PERSONAL BASELINE</span>
-            <h2 class="section-title">设置你的身体目标</h2>
+            <span>{{ activeGoalStepMeta.eyebrow }}</span>
+            <h2 class="section-title">{{ activeGoalStepMeta.heading }}</h2>
           </div>
-          <span class="step-mark">01 / 03</span>
+          <span class="step-mark" aria-live="polite">{{ String(activeGoalStep).padStart(2, '0') }} / 03</span>
         </div>
 
         <div v-if="profileLoading" class="profile-feedback" aria-label="正在加载个人资料">
@@ -115,73 +116,96 @@
           <button type="button" @click="loadProfile">重新加载</button>
         </div>
         <template v-else>
-        <section class="form-section" aria-labelledby="goal-mode-title">
-          <div class="section-label">
-            <span>01</span>
-            <div><h3 id="goal-mode-title">你当前最重要的目标</h3><p>它会决定热量和营养建议的侧重点。</p></div>
-          </div>
-          <div class="mode-grid">
+          <nav class="goal-stepper" aria-label="身体目标设置步骤">
             <button
-              v-for="mode in modes"
-              :key="mode.value"
+              v-for="step in goalSteps"
+              :key="step.id"
               type="button"
-              :class="{ active: profile.mode === mode.value }"
-              :aria-pressed="profile.mode === mode.value"
-              @click="profile.mode = mode.value"
+              :class="{ active: activeGoalStep === step.id, complete: isGoalStepComplete(step.id) }"
+              :aria-current="activeGoalStep === step.id ? 'step' : undefined"
+              @click="goToGoalStep(step.id)"
             >
-              <component :is="mode.icon" :size="24" :weight="profile.mode === mode.value ? 'fill' : 'regular'" />
-              <b>{{ mode.label }}</b>
-              <span>{{ mode.description }}</span>
+              <span class="goal-step-index">
+                <CheckCircle v-if="isGoalStepComplete(step.id) && activeGoalStep !== step.id" :size="18" weight="fill" />
+                <template v-else>{{ String(step.id).padStart(2, '0') }}</template>
+              </span>
+              <span><b>{{ step.title }}</b><small>{{ step.caption }}</small></span>
             </button>
-          </div>
-        </section>
+          </nav>
 
-        <section class="form-section" aria-labelledby="body-data-title">
-          <div class="section-label">
-            <span>02</span>
-            <div><h3 id="body-data-title">账户与身体基准</h3><p>补全联系方式和身体信息，为营养建议提供统一基准。</p></div>
-          </div>
-          <div class="field-grid">
-            <FuelField v-model="profile.phone" label="手机号（可选）" type="tel" autocomplete="tel" placeholder="例如 13800138000" />
-            <FuelField v-model="profile.currentWeight" label="当前体重（kg）" type="number" min="30" max="250" placeholder="例如 72" />
-            <FuelField v-model="profile.height" label="身高（cm，可选）" type="number" min="100" max="250" placeholder="例如 175" />
-            <FuelField v-model="profile.birthDate" label="出生日期（可选）" type="date" :max="today" />
-            <label class="select-field"><span>计算性别（可选）</span><select v-model="profile.sexForCalculation"><option value="">未设置</option><option value="male">男</option><option value="female">女</option><option value="unspecified">不指定</option></select></label>
-            <label class="select-field"><span>日常活动水平（可选）</span><select v-model="profile.activityLevel"><option value="">未设置</option><option value="sedentary">久坐</option><option value="light">轻度活动</option><option value="moderate">中等活动</option><option value="high">高活动量</option><option value="very_high">极高活动量</option></select></label>
-          </div>
-        </section>
+          <div class="goal-step-content" aria-live="polite">
+            <section v-if="activeGoalStep === 1" class="form-section" aria-labelledby="goal-mode-title">
+              <div class="section-label">
+                <span>01</span>
+                <div><h3 id="goal-mode-title">你当前最重要的目标</h3><p>它会决定热量和营养建议的侧重点。</p></div>
+              </div>
+              <div class="mode-grid">
+                <button
+                  v-for="mode in modes"
+                  :key="mode.value"
+                  type="button"
+                  :class="{ active: profile.mode === mode.value }"
+                  :aria-pressed="profile.mode === mode.value"
+                  @click="profile.mode = mode.value"
+                >
+                  <component :is="mode.icon" :size="24" :weight="profile.mode === mode.value ? 'fill' : 'regular'" />
+                  <b>{{ mode.label }}</b>
+                  <span>{{ mode.description }}</span>
+                </button>
+              </div>
+            </section>
 
-        <section class="form-section" aria-labelledby="nutrition-data-title">
-          <div class="section-label">
-            <span>03</span>
-            <div><h3 id="nutrition-data-title">补给与训练目标</h3><p>设置一套可执行的热量、蛋白质和训练节奏。</p></div>
+            <section v-else-if="activeGoalStep === 2" class="form-section" aria-labelledby="body-data-title">
+              <div class="section-label">
+                <span>02</span>
+                <div><h3 id="body-data-title">账户与身体基准</h3><p>补全联系方式和身体信息，为营养建议提供统一基准。</p></div>
+              </div>
+              <div class="field-grid">
+                <FuelField v-model="profile.phone" label="手机号（可选）" type="tel" autocomplete="tel" placeholder="例如 13800138000" />
+                <FuelField v-model="profile.currentWeight" label="当前体重（kg）" type="number" min="30" max="250" placeholder="例如 72" />
+                <FuelField v-model="profile.height" label="身高（cm，可选）" type="number" min="100" max="250" placeholder="例如 175" />
+                <FuelField v-model="profile.birthDate" label="出生日期（可选）" type="date" :max="today" />
+                <label class="select-field"><span>计算性别（可选）</span><select v-model="profile.sexForCalculation"><option value="">未设置</option><option value="male">男</option><option value="female">女</option><option value="unspecified">不指定</option></select></label>
+                <label class="select-field"><span>日常活动水平（可选）</span><select v-model="profile.activityLevel"><option value="">未设置</option><option value="sedentary">久坐</option><option value="light">轻度活动</option><option value="moderate">中等活动</option><option value="high">高活动量</option><option value="very_high">极高活动量</option></select></label>
+              </div>
+            </section>
+
+            <section v-else class="form-section" aria-labelledby="nutrition-data-title">
+              <div class="section-label">
+                <span>03</span>
+                <div><h3 id="nutrition-data-title">补给与训练目标</h3><p>设置一套可执行的热量、蛋白质和训练节奏。</p></div>
+              </div>
+              <div class="field-grid">
+                <FuelField v-model="profile.targetWeight" label="目标体重（kg）" type="number" min="30" max="250" placeholder="例如 66" />
+                <FuelField v-model="profile.dailyCalories" label="每日热量目标（kcal）" type="number" min="1000" max="6000" placeholder="例如 1900" />
+                <FuelField v-model="profile.proteinTarget" label="每日蛋白质（g）" type="number" min="30" max="400" placeholder="例如 130" />
+              </div>
+              <label class="training-days">
+                <span><CalendarDots :size="18" /> 每周训练频率</span>
+                <div>
+                  <button
+                    v-for="day in 7"
+                    :key="day"
+                    type="button"
+                    :class="{ active: Number(profile.trainingDays) === day }"
+                    :aria-label="`每周训练 ${day} 天`"
+                    :aria-pressed="Number(profile.trainingDays) === day"
+                    @click="profile.trainingDays = day"
+                  >{{ day }}</button>
+                </div>
+                <small>{{ trainingCopy }}</small>
+              </label>
+            </section>
           </div>
-          <div class="field-grid">
-            <FuelField v-model="profile.targetWeight" label="目标体重（kg）" type="number" min="30" max="250" placeholder="例如 66" />
-            <FuelField v-model="profile.dailyCalories" label="每日热量目标（kcal）" type="number" min="1000" max="6000" placeholder="例如 1900" />
-            <FuelField v-model="profile.proteinTarget" label="每日蛋白质（g）" type="number" min="30" max="400" placeholder="例如 130" />
-          </div>
-          <label class="training-days">
-            <span><CalendarDots :size="18" /> 每周训练频率</span>
-            <div>
-              <button
-                v-for="day in 7"
-                :key="day"
-                type="button"
-                :class="{ active: Number(profile.trainingDays) === day }"
-                :aria-label="`每周训练 ${day} 天`"
-                :aria-pressed="Number(profile.trainingDays) === day"
-                @click="profile.trainingDays = day"
-              >{{ day }}</button>
+
+          <footer class="form-footer">
+            <div class="local-note"><CloudCheck :size="18" /><span><b>{{ activeGoalStepMeta.noteTitle }}</b>{{ activeGoalStepMeta.note }}</span></div>
+            <div class="step-actions">
+              <button v-if="activeGoalStep > 1" class="step-back" type="button" @click="goToGoalStep(activeGoalStep - 1, false)">上一步</button>
+              <FuelButton v-if="activeGoalStep < 3" @click="goToGoalStep(activeGoalStep + 1)">下一步</FuelButton>
+              <FuelButton v-else :loading="saving" :disabled="userStore.isDemo" @click="saveProfile">保存全部资料</FuelButton>
             </div>
-            <small>{{ trainingCopy }}</small>
-          </label>
-        </section>
-
-        <footer class="form-footer">
-          <div class="local-note"><CloudCheck :size="18" /><span><b>资料会同步到你的账户</b>保存后可在其他设备恢复；旧的本机目标配置会在首次同步后自动迁移。</span></div>
-          <FuelButton :loading="saving" :disabled="userStore.isDemo" @click="saveProfile">保存个人资料</FuelButton>
-        </footer>
+          </footer>
         </template>
       </section>
 
@@ -230,7 +254,7 @@
 </template>
 
 <script setup>
-import { computed, markRaw, onMounted, reactive, ref } from 'vue'
+import { computed, markRaw, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   PhBarbell as Barbell, PhCalendarDots as CalendarDots, PhCamera as Camera,
@@ -266,6 +290,8 @@ const serverAccount = ref(null)
 const profileLoading = ref(true)
 const profileError = ref('')
 const activeTab = ref('goals')
+const activeGoalStep = ref(1)
+const goalPanel = ref(null)
 const saving = ref(false)
 const avatarSaving = ref(false)
 const avatarInput = ref()
@@ -295,6 +321,20 @@ const modes = [
   { value: 'muscle', label: '增肌', description: '稳定盈余，优先蛋白质', icon: markRaw(Barbell) },
   { value: 'maintain', label: '保持', description: '维持体态，提高饮食质量', icon: markRaw(PersonSimpleRun) },
 ]
+const goalSteps = [
+  {
+    id: 1, title: '主要目标', caption: '确定建议方向', eyebrow: 'GOAL DIRECTION', heading: '选择你的主要目标',
+    noteTitle: '先确定建议方向', note: '后续营养建议会围绕这个目标调整侧重点。',
+  },
+  {
+    id: 2, title: '身体基准', caption: '补充基础数据', eyebrow: 'PERSONAL BASELINE', heading: '补充身体与活动基准',
+    noteTitle: '填写必要的身体基准', note: '可选字段可以暂时留空，之后仍能回来补充。',
+  },
+  {
+    id: 3, title: '营养训练', caption: '设置执行目标', eyebrow: 'NUTRITION & TRAINING', heading: '设置营养与训练目标',
+    noteTitle: '资料会同步到你的账户', note: '保存后可在其他设备恢复；旧的本机目标配置会在首次同步后自动迁移。',
+  },
+]
 
 const today = new Date().toISOString().slice(0, 10)
 const accountInfo = computed(() => ({ ...(userStore.user || {}), ...(serverAccount.value || {}) }))
@@ -314,6 +354,7 @@ const syncStatusText = computed(() => {
   return '配置已同步至账户'
 })
 const modeLabel = computed(() => modes.find((item) => item.value === profile.mode)?.label || '尚未设置')
+const activeGoalStepMeta = computed(() => goalSteps.find((step) => step.id === activeGoalStep.value) || goalSteps[0])
 const goalProgress = computed(() => {
   const fields = ['mode', 'currentWeight', 'targetWeight', 'dailyCalories', 'proteinTarget', 'trainingDays']
   return Math.round(fields.filter((key) => profile[key] !== '' && profile[key] !== null).length / fields.length * 100)
@@ -381,22 +422,63 @@ function numberInRange(value, min, max, integer = false) {
   return Number.isFinite(number) && number >= min && number <= max && (!integer || Number.isInteger(number))
 }
 
-function validateProfile() {
-  if (!modes.some((item) => item.value === profile.mode)) return '请选择当前最重要的目标'
-  if (!numberInRange(profile.currentWeight, 30, 250)) return '当前体重需要在 30～250 kg 之间'
+function validateGoalStep(step) {
+  if (step === 1) {
+    return modes.some((item) => item.value === profile.mode) ? '' : '请选择当前最重要的目标'
+  }
+  if (step === 2) {
+    if (!numberInRange(profile.currentWeight, 30, 250)) return '当前体重需要在 30～250 kg 之间'
+    if (profile.height !== '' && !numberInRange(profile.height, 100, 250)) return '身高需要在 100～250 cm 之间'
+    if (profile.birthDate && profile.birthDate > today) return '出生日期不能晚于今天'
+    return ''
+  }
   if (!numberInRange(profile.targetWeight, 30, 250)) return '目标体重需要在 30～250 kg 之间'
   if (!numberInRange(profile.dailyCalories, 1000, 6000, true)) return '每日热量需要是 1000～6000 的整数'
   if (!numberInRange(profile.proteinTarget, 30, 400, true)) return '每日蛋白质需要是 30～400 的整数'
   if (!numberInRange(profile.trainingDays, 1, 7, true)) return '请选择每周 1～7 天的训练频率'
-  if (profile.height !== '' && !numberInRange(profile.height, 100, 250)) return '身高需要在 100～250 cm 之间'
-  if (profile.birthDate && profile.birthDate > today) return '出生日期不能晚于今天'
   return ''
 }
 
+function isGoalStepComplete(step) {
+  return !validateGoalStep(step)
+}
+
+async function revealGoalStep() {
+  await nextTick()
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  goalPanel.value?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+}
+
+async function goToGoalStep(targetStep, validateForward = true) {
+  const target = Math.min(3, Math.max(1, Number(targetStep) || 1))
+  if (target === activeGoalStep.value) return
+  if (validateForward && target > activeGoalStep.value) {
+    for (let step = activeGoalStep.value; step < target; step += 1) {
+      const validationMessage = validateGoalStep(step)
+      if (validationMessage) {
+        ElMessage.warning(validationMessage)
+        return
+      }
+    }
+  }
+  activeGoalStep.value = target
+  await revealGoalStep()
+}
+
+function validateProfile() {
+  for (const step of goalSteps) {
+    const message = validateGoalStep(step.id)
+    if (message) return { step: step.id, message }
+  }
+  return null
+}
+
 async function saveProfile() {
-  const validationMessage = validateProfile()
-  if (validationMessage) {
-    ElMessage.warning(validationMessage)
+  const validation = validateProfile()
+  if (validation) {
+    activeGoalStep.value = validation.step
+    ElMessage.warning(validation.message)
+    await revealGoalStep()
     return
   }
   saving.value = true
@@ -543,6 +625,19 @@ onMounted(loadProfile)
 .panel-heading { margin-bottom: 5px; padding-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
 .step-mark { color: var(--muted); font-family: "Barlow Condensed"; font-size: 1rem; }
+.goal-stepper { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.goal-stepper button { min-width: 0; min-height: 72px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; color: var(--muted); text-align: left; background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 11px; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.goal-stepper button:hover { color: var(--text-secondary); border-color: var(--border-strong); }
+.goal-stepper button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.goal-stepper button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.4); }
+.goal-stepper button.complete:not(.active) { color: var(--text-secondary); }
+.goal-stepper button > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.goal-stepper b { overflow: hidden; color: var(--text); font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.goal-stepper small { overflow: hidden; color: var(--muted); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.goal-step-index { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; color: var(--text-secondary); background: var(--surface-soft); border-radius: 8px; font-family: "Barlow Condensed"; font-size: .78rem; font-weight: 700; }
+.goal-stepper button.active .goal-step-index { color: #11160f; background: var(--primary); }
+.goal-stepper button.complete:not(.active) .goal-step-index { color: var(--primary); background: var(--primary-soft); }
+.goal-step-content { min-height: 390px; }
 .form-section { padding: 26px 0; border-bottom: 1px solid var(--border); }
 .section-label { margin-bottom: 18px; display: flex; gap: 13px; }
 .section-label > span { width: 29px; height: 29px; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 8px; font-family: "Barlow Condensed"; font-weight: 700; }
@@ -562,7 +657,7 @@ onMounted(loadProfile)
 .training-days > span { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .84rem; font-weight: 500; }
 .training-days > span svg { color: var(--primary); }
 .training-days > div { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-.training-days button { min-height: 42px; color: var(--text-secondary); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 9px; }
+.training-days button { min-height: 44px; color: var(--text-secondary); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 9px; }
 .training-days button:hover { border-color: var(--border-strong); }
 .training-days button.active { color: #11160f; background: var(--primary); border-color: var(--primary); font-weight: 700; }
 .training-days small { color: var(--muted); font-size: .72rem; }
@@ -570,6 +665,10 @@ onMounted(loadProfile)
 .local-note { max-width: 440px; display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .local-note svg { flex: 0 0 auto; color: var(--primary); }
 .local-note b { display: block; color: var(--text-secondary); }
+.step-actions { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+.step-back { min-height: 48px; padding: 0 17px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 10px; font-size: .8rem; font-weight: 600; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.step-back:hover { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.3); }
+.step-back:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .profile-feedback { min-height: 390px; display: grid; place-content: center; justify-items: center; gap: 11px; color: var(--primary); text-align: center; }
 .profile-feedback p { max-width: 52ch; margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.6; }
 .profile-feedback.error { color: #ff938d; }
@@ -579,7 +678,7 @@ onMounted(loadProfile)
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .spin { animation: none; }
-  .avatar-actions button, .select-field select { transition: none; }
+  .avatar-actions button, .select-field select, .goal-stepper button, .step-back { transition: none; }
 }
 @media (max-width: 1040px) {
   .profile-grid { grid-template-columns: 1fr; }
@@ -595,6 +694,12 @@ onMounted(loadProfile)
   .page-header .status-chip { display: none; }
   .profile-tabs button { justify-content: center; text-align: center; }
   .profile-tabs small { display: none; }
+  .goal-stepper { gap: 6px; }
+  .goal-stepper button { min-height: 64px; padding: 8px; justify-content: center; }
+  .goal-stepper button > span:last-child { display: block; }
+  .goal-stepper small { display: none; }
+  .goal-step-index { width: 27px; height: 27px; }
+  .goal-step-content { min-height: 0; }
   .mode-grid { grid-template-columns: 1fr; }
   .mode-grid button { min-height: 88px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; }
   .mode-grid button svg { grid-row: 1 / 3; }
@@ -603,7 +708,9 @@ onMounted(loadProfile)
   .security-footer { align-items: stretch; flex-direction: column; }
   .security-footer .fuel-button { width: 100%; }
   .form-footer { align-items: stretch; flex-direction: column; }
-  .form-footer .fuel-button { width: 100%; }
+  .step-actions { width: 100%; margin-left: 0; }
+  .step-actions > * { flex: 1; }
+  .step-actions .fuel-button { width: 100%; }
 }
 @media (max-width: 460px) {
   .identity-card { display: block; }
