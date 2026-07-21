@@ -153,25 +153,40 @@
 
       <aside class="context-panel" :aria-hidden="contextHidden">
         <div class="context-title"><span>当前计划</span><Target :size="22" weight="duotone" /></div>
-        <div class="goal-summary">
-          <small>目标</small><strong>减脂</strong><span>每日预算 2,140 kcal</span>
+        <div v-if="contextLoading" class="context-loading" aria-label="正在加载当前计划">
+          <i /><i /><i /><i />
         </div>
-        <div class="context-metrics">
-          <div><span>蛋白质</span><strong class="metric-number">108 / 150g</strong></div>
-          <div><span>今日训练</span><strong>上肢推拉</strong></div>
-          <div><span>剩余热量</span><strong class="metric-number">680 kcal</strong></div>
+        <div v-else-if="contextError" class="context-error" role="alert">
+          <WarningCircle :size="24" />
+          <b>计划读取失败</b>
+          <p>{{ contextError }}</p>
+          <button type="button" :disabled="contextLoading" @click="loadCoachContext">重新读取</button>
         </div>
-        <div class="source-box">
-          <BookOpenText :size="21" weight="duotone" />
-          <div><b>知识库已启用</b><p>回答可以结合已上传的营养资料。</p></div>
-        </div>
+        <template v-else>
+          <div class="goal-summary">
+            <small>主要目标</small><strong>{{ goalModeLabel }}</strong><span>{{ dailyCaloriesLabel }}</span>
+          </div>
+          <div class="context-metrics">
+            <div><span>每日蛋白质目标</span><strong class="metric-number">{{ proteinTargetLabel }}</strong></div>
+            <div><span>每周训练频率</span><strong class="metric-number">{{ trainingDaysLabel }}</strong></div>
+            <div><span>目标体重</span><strong class="metric-number">{{ targetWeightLabel }}</strong></div>
+          </div>
+          <div class="profile-context-note">
+            <p>数据来自个人资料，不代表今日实际摄入或训练记录。</p>
+            <a href="/app/profile">{{ contextIncomplete ? '完善个人资料' : '编辑个人目标' }}<ArrowRight :size="15" weight="bold" /></a>
+          </div>
+          <div class="source-box">
+            <BookOpenText :size="21" weight="duotone" />
+            <div><b>支持知识库检索</b><p>回答时可检索已上传的营养资料，实际引用以回复内容为准。</p></div>
+          </div>
+        </template>
       </aside>
     </section>
   </div>
 </template>
 
 <script setup>
-import { markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   PhArrowRight as ArrowRight, PhArrowsClockwise as ArrowsClockwise,
@@ -187,9 +202,11 @@ import {
   createChatSessionApi, deleteChatSessionApi, getChatSessionApi, getChatSessionsApi,
   sendChatImageApi, sendChatMessageApi,
 } from '@/api/chat'
+import { getProfileApi } from '@/api/profile'
 import { useUserStore } from '@/stores/user'
 import { normalizeChatResponse, normalizeChatSession, normalizeChatSessions } from '@/utils/chatData'
 import { renderMarkdown } from '@/utils/markdown'
+import { emptyProfileForm, normalizeUserProfile } from '@/utils/profileData'
 
 const userStore = useUserStore()
 const question = ref('')
@@ -210,6 +227,9 @@ const sessionsError = ref('')
 const loadingSessionId = ref('')
 const deletingSessionId = ref('')
 const historyOpen = ref(false)
+const coachProfile = ref(emptyProfileForm())
+const contextLoading = ref(true)
+const contextError = ref('')
 const messageImageUrls = new Set()
 let requestGeneration = 0
 let activeRequestController = null
@@ -231,11 +251,49 @@ const demoSessions = [
     created_at: '2026-07-18T08:10:00', updated_at: '2026-07-18T08:14:00', messages: [],
   },
 ]
-const prompts = [
-  { title: '安排减脂晚餐', detail: '控制热量，也保证饱腹感', question: '我正在减脂，今晚还剩 680 千卡，晚饭怎么安排？', icon: markRaw(ForkKnife) },
+const goalModeLabels = { cut: '减脂', muscle: '增肌', maintain: '保持' }
+const goalModeLabel = computed(() => goalModeLabels[coachProfile.value.mode] || '尚未设置')
+const dailyCaloriesLabel = computed(() => {
+  const value = positiveNumber(coachProfile.value.dailyCalories)
+  return value ? `每日热量目标 ${formatNumber(value)} kcal` : '尚未设置每日热量目标'
+})
+const proteinTargetLabel = computed(() => formatPlanMetric(coachProfile.value.proteinTarget, 'g / 天'))
+const trainingDaysLabel = computed(() => formatPlanMetric(coachProfile.value.trainingDays, '天 / 周'))
+const targetWeightLabel = computed(() => formatPlanMetric(coachProfile.value.targetWeight, 'kg'))
+const contextIncomplete = computed(() => [
+  coachProfile.value.mode,
+  coachProfile.value.dailyCalories,
+  coachProfile.value.proteinTarget,
+  coachProfile.value.trainingDays,
+  coachProfile.value.targetWeight,
+].some((value) => value === '' || value === null || value === undefined))
+const dinnerPrompt = computed(() => {
+  const details = []
+  if (goalModeLabels[coachProfile.value.mode]) details.push(`我的目标是${goalModeLabel.value}`)
+  const calories = positiveNumber(coachProfile.value.dailyCalories)
+  if (calories) details.push(`每日热量目标为 ${formatNumber(calories)} 千卡`)
+  const context = details.length ? `${details.join('，')}。` : ''
+  return `${context}请帮我安排今晚的晚饭，兼顾营养和饱腹感。`
+})
+const prompts = computed(() => [
+  { title: '安排今晚饮食', detail: '结合目标，也保证饱腹感', question: dinnerPrompt.value, icon: markRaw(ForkKnife) },
   { title: '优化训练补给', detail: '训练前后应该怎样吃', question: '我晚上六点半力量训练，训练前后分别吃什么？', icon: markRaw(PersonSimpleRun) },
-  { title: '分析一顿饭', detail: '判断热量和营养组成', question: '如何判断一顿饭的蛋白质和热量是否适合减脂？', icon: markRaw(BowlFood) },
-]
+  { title: '分析一顿饭', detail: '判断热量和营养组成', question: '如何判断一顿饭的蛋白质和热量是否适合我的目标？', icon: markRaw(BowlFood) },
+])
+
+function positiveNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value)
+}
+
+function formatPlanMetric(value, unit) {
+  const number = positiveNumber(value)
+  return number ? `${formatNumber(number)} ${unit}` : '未设置'
+}
 
 function createSessionId() {
   if (typeof crypto?.randomUUID === 'function') return `meal-${crypto.randomUUID()}`
@@ -251,6 +309,25 @@ function toggleContext() {
   contextHidden.value = !contextHidden.value
   try { localStorage.setItem(CONTEXT_KEY, String(contextHidden.value)) }
   catch { /* Keep the preference for this page session. */ }
+}
+
+async function loadCoachContext() {
+  contextLoading.value = true
+  contextError.value = ''
+  if (userStore.isDemo) {
+    coachProfile.value = emptyProfileForm()
+    contextLoading.value = false
+    return
+  }
+
+  try {
+    coachProfile.value = normalizeUserProfile(await getProfileApi({ silent: true })).form
+  } catch {
+    coachProfile.value = emptyProfileForm()
+    contextError.value = '暂时无法获取个人资料，请稍后重试。'
+  } finally {
+    contextLoading.value = false
+  }
 }
 
 function formatSessionTime(value) {
@@ -559,7 +636,10 @@ function resetChat() {
   messages.value = [{ ...firstMessage }]
 }
 
-onMounted(loadSessions)
+onMounted(() => {
+  loadSessions()
+  loadCoachContext()
+})
 
 onBeforeUnmount(() => {
   cancelActiveRequest(false)
@@ -677,6 +757,16 @@ onBeforeUnmount(() => {
 .spin { animation: spin 800ms linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 .context-panel { min-height: 0; padding: 24px; overflow-y: auto; background: rgba(13,16,15,.55); border-left: 1px solid var(--border); }
 .context-title { display: flex; align-items: center; justify-content: space-between; color: var(--primary); font-size: .8rem; font-weight: 600; }
+.context-loading { min-height: 360px; padding-top: 30px; display: grid; align-content: start; gap: 12px; }
+.context-loading i { height: 52px; background: linear-gradient(90deg, rgba(255,255,255,.025), rgba(255,255,255,.065), rgba(255,255,255,.025)); background-size: 200% 100%; border-radius: 10px; animation: session-shimmer 1.2s linear infinite; }
+.context-loading i:first-child { height: 116px; }
+.context-error { min-height: 360px; padding: 28px 8px; display: grid; place-content: center; justify-items: center; gap: 9px; color: #ffaaa5; text-align: center; }
+.context-error b { color: var(--text); font-size: .84rem; }
+.context-error p { margin: 0; color: var(--muted); font-size: .7rem; line-height: 1.55; }
+.context-error button { min-height: 44px; margin-top: 5px; padding: 0 14px; color: #10150e; background: var(--primary); border: 1px solid var(--primary); border-radius: 9px; font-size: .72rem; font-weight: 650; }
+.context-error button:hover:not(:disabled) { filter: brightness(1.08); }
+.context-error button:focus-visible, .profile-context-note a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.context-error button:disabled { cursor: wait; opacity: .5; }
 .goal-summary { margin: 30px 0; padding: 20px; display: grid; gap: 5px; background: var(--surface); border-radius: 12px; }
 .goal-summary small, .goal-summary span { color: var(--muted); font-size: .7rem; }
 .goal-summary strong { font-family: "Barlow Condensed"; font-size: 2.5rem; line-height: 1; }
@@ -684,6 +774,10 @@ onBeforeUnmount(() => {
 .context-metrics div { padding: 15px 0; display: grid; gap: 4px; border-bottom: 1px solid var(--border); }
 .context-metrics span { color: var(--muted); font-size: .68rem; }
 .context-metrics strong { font-size: .85rem; font-weight: 500; }
+.profile-context-note { margin-top: 18px; display: grid; gap: 9px; }
+.profile-context-note p { margin: 0; color: var(--muted); font-size: .65rem; line-height: 1.55; }
+.profile-context-note a { min-height: 44px; padding: 0 11px; display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); background: var(--canvas-soft); border: 1px solid var(--border); border-radius: 9px; font-size: .7rem; font-weight: 600; text-decoration: none; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
+.profile-context-note a:hover { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.28); }
 .source-box { margin-top: 26px; padding: 15px; display: flex; gap: 10px; color: var(--primary); background: var(--primary-soft); border-radius: 10px; }
 .source-box b { color: var(--text); font-size: .78rem; }.source-box p { margin: 4px 0 0; color: var(--muted); font-size: .68rem; line-height: 1.5; }
 
@@ -717,6 +811,6 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .quick-grid button, .context-toggle, .history-toggle, .session-panel, .session-list article, .attach, .stop-button { transition: none; }
-  .typing i, .spin, .session-loading i { animation: none; }
+  .typing i, .spin, .session-loading i, .context-loading i { animation: none; }
 }
 </style>
