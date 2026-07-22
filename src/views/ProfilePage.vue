@@ -63,45 +63,16 @@
         </dl>
       </aside>
 
-      <nav class="profile-tabs surface" role="tablist" aria-label="个人资料设置">
-        <button
-          id="goals-tab"
-          type="button"
-          role="tab"
-          :class="{ active: activeTab === 'goals' }"
-          :aria-selected="activeTab === 'goals'"
-          aria-controls="goals-panel"
-          @click="activeTab = 'goals'"
-        >
-          <Target :size="19" :weight="activeTab === 'goals' ? 'fill' : 'regular'" />
-          <span><b>身体目标</b><small>体重、热量与训练节奏</small></span>
-        </button>
-        <button
-          id="security-tab"
-          type="button"
-          role="tab"
-          :class="{ active: activeTab === 'security' }"
-          :aria-selected="activeTab === 'security'"
-          aria-controls="security-panel"
-          @click="activeTab = 'security'"
-        >
-          <LockKey :size="19" :weight="activeTab === 'security' ? 'fill' : 'regular'" />
-          <span><b>账户安全</b><small>修改你的登录密码</small></span>
-        </button>
-      </nav>
-
       <section
-        v-if="activeTab === 'goals'"
         ref="goalPanel"
         id="goals-panel"
-        class="goal-panel surface tab-panel"
-        role="tabpanel"
-        aria-labelledby="goals-tab"
+        class="goal-panel surface"
+        aria-labelledby="goal-panel-title"
       >
         <div class="panel-heading">
           <div>
             <span>{{ activeGoalStepMeta.eyebrow }}</span>
-            <h2 class="section-title">{{ activeGoalStepMeta.heading }}</h2>
+            <h2 id="goal-panel-title" class="section-title">{{ activeGoalStepMeta.heading }}</h2>
           </div>
           <span class="step-mark" aria-live="polite">{{ String(activeGoalStep).padStart(2, '0') }} / 03</span>
         </div>
@@ -209,46 +180,6 @@
         </template>
       </section>
 
-      <section
-        v-else
-        id="security-panel"
-        class="security-panel surface tab-panel"
-        role="tabpanel"
-        aria-labelledby="security-tab"
-      >
-        <div class="security-heading">
-          <div class="security-icon"><LockKey :size="22" weight="bold" /></div>
-          <div>
-            <span>ACCOUNT SECURITY</span>
-            <h2 id="security-title" class="section-title">修改登录密码</h2>
-            <p>验证当前密码后设置新密码，新密码至少需要 6 位。</p>
-          </div>
-        </div>
-        <el-form
-          ref="passwordFormRef"
-          class="security-form"
-          :model="passwordForm"
-          :rules="passwordRules"
-          label-position="top"
-          @submit.prevent="changePassword"
-        >
-          <div class="security-fields">
-            <el-form-item label="当前密码" prop="old_password">
-              <el-input v-model="passwordForm.old_password" type="password" show-password autocomplete="current-password" placeholder="输入当前密码" />
-            </el-form-item>
-            <el-form-item label="新密码" prop="new_password">
-              <el-input v-model="passwordForm.new_password" type="password" show-password autocomplete="new-password" placeholder="至少 6 位" />
-            </el-form-item>
-            <el-form-item label="确认新密码" prop="confirm_password">
-              <el-input v-model="passwordForm.confirm_password" type="password" show-password autocomplete="new-password" placeholder="再次输入新密码" />
-            </el-form-item>
-          </div>
-          <div class="security-footer">
-            <p>{{ userStore.isDemo ? '体验模式没有真实账户，不能修改密码。' : '密码不会保存在浏览器本地。' }}</p>
-            <FuelButton native-type="submit" :loading="passwordSaving" :disabled="userStore.isDemo">确认修改密码</FuelButton>
-          </div>
-        </el-form>
-      </section>
     </section>
   </div>
 </template>
@@ -261,13 +192,12 @@ import {
   PhCheckCircle as CheckCircle, PhCircleNotch as CircleNotch,
   PhClockCounterClockwise as ClockCounterClockwise, PhCloudCheck as CloudCheck,
   PhHeartbeat as Heartbeat, PhIdentificationCard as IdentificationCard,
-  PhLockKey as LockKey, PhPersonSimpleRun as PersonSimpleRun, PhPhone as Phone,
+  PhPersonSimpleRun as PersonSimpleRun, PhPhone as Phone,
   PhTarget as Target, PhTrash as Trash, PhTrendDown as TrendDown,
   PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
 import FuelButton from '@/components/ui/FuelButton.vue'
 import FuelField from '@/components/ui/FuelField.vue'
-import { changePasswordApi } from '@/api/auth'
 import {
   deleteAvatarApi, getProfileApi, updateProfileApi, uploadAvatarApi,
 } from '@/api/profile'
@@ -289,33 +219,12 @@ const profile = reactive(emptyProfileForm())
 const serverAccount = ref(null)
 const profileLoading = ref(true)
 const profileError = ref('')
-const activeTab = ref('goals')
 const activeGoalStep = ref(1)
 const goalPanel = ref(null)
 const saving = ref(false)
 const avatarSaving = ref(false)
 const avatarInput = ref()
 const avatarVersion = ref(Date.now())
-const passwordSaving = ref(false)
-const passwordFormRef = ref()
-const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
-const passwordRules = {
-  old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
-  new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '新密码至少 6 位', trigger: 'blur' },
-  ],
-  confirm_password: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
-    {
-      validator: (_rule, value, callback) => {
-        if (value === passwordForm.new_password) callback()
-        else callback(new Error('两次输入的新密码不一致'))
-      },
-      trigger: 'blur',
-    },
-  ],
-}
 const modes = [
   { value: 'cut', label: '减脂', description: '控制热量，保住训练表现', icon: markRaw(TrendDown) },
   { value: 'muscle', label: '增肌', description: '稳定盈余，优先蛋白质', icon: markRaw(Barbell) },
@@ -545,25 +454,6 @@ async function removeAvatar() {
   }
 }
 
-async function changePassword() {
-  if (userStore.isDemo) {
-    ElMessage.warning('体验模式不能修改密码')
-    return
-  }
-  if (!await passwordFormRef.value.validate().catch(() => false)) return
-  passwordSaving.value = true
-  try {
-    await changePasswordApi({
-      old_password: passwordForm.old_password,
-      new_password: passwordForm.new_password,
-    })
-    passwordFormRef.value.resetFields()
-    ElMessage.success('密码修改成功')
-  } finally {
-    passwordSaving.value = false
-  }
-}
-
 onMounted(loadProfile)
 </script>
 
@@ -574,16 +464,7 @@ onMounted(loadProfile)
 .page-header .status-chip.warning { color: #ff938d; border-color: rgba(240, 103, 95, .28); }
 .eyebrow { margin-bottom: 17px; display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: .74rem; font-weight: 700; letter-spacing: .13em; }
 .profile-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
-.identity-card { grid-row: 1 / span 2; padding: 24px; }
-.profile-tabs { grid-column: 2; padding: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.profile-tabs button { min-height: 64px; padding: 10px 14px; display: flex; align-items: center; gap: 11px; color: var(--muted); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 11px; transition: color 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out); }
-.profile-tabs button:hover { color: var(--text-secondary); background: rgba(255,255,255,.025); }
-.profile-tabs button.active { color: var(--primary); background: var(--primary-soft); border-color: rgba(159,226,75,.2); }
-.profile-tabs button > span { display: grid; gap: 2px; }
-.profile-tabs b { color: var(--text); font-size: .82rem; }
-.profile-tabs small { color: var(--muted); font-size: .72rem; }
-.tab-panel { grid-column: 2; animation: tab-in 220ms var(--ease-out); }
-@keyframes tab-in { from { opacity: 0; transform: translateY(7px); } }
+.identity-card { grid-row: 1; padding: 24px; }
 .identity-top { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
 .avatar-editor { display: grid; gap: 11px; }
 .avatar { width: 76px; height: 76px; overflow: hidden; display: grid; place-items: center; color: #12170f; background: var(--primary); border-radius: 19px 19px 19px 5px; box-shadow: 10px 10px 0 rgba(159,226,75,.1); font-family: "Barlow Condensed"; font-size: 2.15rem; font-weight: 700; }
@@ -613,15 +494,7 @@ onMounted(loadProfile)
 .identity-card dl > div:last-child { border-bottom: 0; }
 .identity-card dt { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
 .identity-card dd { margin: 0; max-width: 48%; overflow: hidden; color: var(--text-secondary); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
-.goal-panel { padding: clamp(20px, 3vw, 34px); }
-.security-panel { padding: clamp(20px, 3vw, 30px); }
-.security-heading { margin-bottom: 22px; display: flex; align-items: flex-start; gap: 14px; }
-.security-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #11160f; background: var(--primary); border-radius: 11px; }
-.security-heading > div:last-child > span { display: block; margin-bottom: 4px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
-.security-heading p { margin: 6px 0 0; color: var(--muted); font-size: .76rem; }
-.security-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.security-footer { padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--border); }
-.security-footer p { margin: 0; color: var(--muted); font-size: .72rem; }
+.goal-panel { grid-column: 2; padding: clamp(20px, 3vw, 34px); }
 .panel-heading { margin-bottom: 5px; padding-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .panel-heading > div > span { display: block; margin-bottom: 5px; color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .13em; }
 .step-mark { color: var(--muted); font-family: "Barlow Condensed"; font-size: 1rem; }
@@ -683,7 +556,7 @@ onMounted(loadProfile)
 @media (max-width: 1040px) {
   .profile-grid { grid-template-columns: 1fr; }
   .identity-card { grid-row: auto; }
-  .profile-tabs, .tab-panel { grid-column: 1; }
+  .goal-panel { grid-column: 1; }
   .identity-card { display: grid; grid-template-columns: auto 1fr; column-gap: 24px; }
   .identity-top { grid-row: 1 / 5; display: block; }
   .account-state { margin-top: 16px; display: flex; }
@@ -692,8 +565,6 @@ onMounted(loadProfile)
 @media (max-width: 700px) {
   .page-header { min-height: 210px; align-items: flex-start; }
   .page-header .status-chip { display: none; }
-  .profile-tabs button { justify-content: center; text-align: center; }
-  .profile-tabs small { display: none; }
   .goal-stepper { gap: 6px; }
   .goal-stepper button { min-height: 64px; padding: 8px; justify-content: center; }
   .goal-stepper button > span:last-child { display: block; }
@@ -704,9 +575,6 @@ onMounted(loadProfile)
   .mode-grid button { min-height: 88px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; }
   .mode-grid button svg { grid-row: 1 / 3; }
   .field-grid { grid-template-columns: 1fr; }
-  .security-fields { grid-template-columns: 1fr; }
-  .security-footer { align-items: stretch; flex-direction: column; }
-  .security-footer .fuel-button { width: 100%; }
   .form-footer { align-items: stretch; flex-direction: column; }
   .step-actions { width: 100%; margin-left: 0; }
   .step-actions > * { flex: 1; }

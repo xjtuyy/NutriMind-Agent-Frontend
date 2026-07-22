@@ -45,8 +45,8 @@
             <component :is="serviceIcon" :size="17" weight="bold" />
             {{ serviceLabel }}
           </span>
-          <el-dropdown trigger="click" @command="handleCommand">
-            <button class="account-button" aria-label="打开账户菜单">
+          <el-dropdown trigger="click" @command="handleCommand" @visible-change="accountMenuOpen = $event">
+            <button class="account-button" aria-label="打开账户菜单" aria-haspopup="menu" :aria-expanded="accountMenuOpen">
               <span class="account-avatar">
                 <img v-if="visibleAvatarUrl" :src="visibleAvatarUrl" :alt="`${userStore.username || '用户'}的头像`" @error="handleAvatarError">
                 <span v-else aria-hidden="true">{{ userInitial }}</span>
@@ -57,6 +57,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item v-if="!isAdminLayout" command="profile"><UserCircle :size="17" />身体与目标</el-dropdown-item>
+                <el-dropdown-item command="password"><LockKey :size="17" />修改密码</el-dropdown-item>
                 <el-dropdown-item command="logout" divided><SignOut :size="17" />退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -70,6 +71,7 @@
         </router-view>
       </main>
     </section>
+    <ChangePasswordDialog v-model="passwordDialogVisible" :is-demo="userStore.isDemo" />
   </div>
 </template>
 
@@ -80,12 +82,13 @@ import {
   PhBarbell as Barbell, PhBookOpenText as BookOpenText, PhCaretDown as CaretDown,
   PhCloudCheck as CloudCheck, PhCloudX as CloudX,
   PhCpu as Cpu, PhGauge as Gauge,
-  PhLightning as Lightning,
+  PhLightning as Lightning, PhLockKey as LockKey,
   PhScan as Scan, PhScanSmiley as ScanSmiley, PhSignOut as SignOut, PhSparkle as Sparkle,
   PhSidebarSimple as SidebarSimple, PhUserCircle as UserCircle, PhUsers as Users,
 } from '@phosphor-icons/vue'
 import { useUserStore } from '@/stores/user'
 import { getHealthApi } from '@/api/system'
+import ChangePasswordDialog from '@/components/account/ChangePasswordDialog.vue'
 
 const SIDEBAR_KEY = 'nutrimind_sidebar_hidden'
 
@@ -106,6 +109,8 @@ const isAdminLayout = computed(() => props.mode === 'admin')
 const serviceStatus = ref(userStore.isDemo ? 'preview' : 'checking')
 const railHidden = ref(readSidebarPreference())
 const avatarLoadFailed = ref(false)
+const accountMenuOpen = ref(false)
+const passwordDialogVisible = ref(false)
 const userNavItems = [
   { path: '/app/coach', label: '教练', icon: markRaw(Sparkle) },
   { path: '/app/scan', label: '照片', icon: markRaw(ScanSmiley) },
@@ -160,6 +165,7 @@ function toggleRail() {
 
 async function handleCommand(command) {
   if (command === 'profile') router.push('/app/profile')
+  if (command === 'password') passwordDialogVisible.value = true
   if (command === 'logout') {
     await userStore.logout()
     router.push('/login')
