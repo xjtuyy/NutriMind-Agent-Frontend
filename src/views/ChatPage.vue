@@ -106,7 +106,7 @@
               </div>
               <details v-if="message.toolCalls?.length" class="tool-details">
                 <summary>查看本次使用的工具</summary>
-                <ul><li v-for="tool in message.toolCalls" :key="tool.id"><code>{{ tool.name }}</code></li></ul>
+                <ul><li v-for="tool in message.toolCalls" :key="tool.id"><code>{{ toolDisplayName(tool.name) }}</code></li></ul>
               </details>
               <section v-if="message.nutrition" class="answer-card">
                 <div v-for="item in message.nutrition" :key="item.label"><span>{{ item.label }}</span><strong class="metric-number">{{ item.value }}</strong></div>
@@ -172,7 +172,7 @@
             <div><span>目标体重</span><strong class="metric-number">{{ targetWeightLabel }}</strong></div>
           </div>
           <div class="profile-context-note">
-            <p>数据来自个人资料，不代表今日实际摄入或训练记录。</p>
+            <p>身体与目标资料会自动作为 Agent 的个性化上下文；不代表今日实际摄入或训练记录。</p>
             <a href="/app/profile">{{ contextIncomplete ? '完善个人资料' : '编辑个人目标' }}<ArrowRight :size="15" weight="bold" /></a>
           </div>
           <div class="source-box">
@@ -252,6 +252,16 @@ const demoSessions = [
   },
 ]
 const goalModeLabels = { cut: '减脂', muscle: '增肌', maintain: '保持' }
+const toolDisplayNames = {
+  detect_food: '食物图片识别',
+  query_food_calories: '食物营养查询',
+  calculate_total_nutrition: '整餐营养计算',
+  search_nutrition_knowledge: '营养知识库检索',
+  search_web_evidence: 'Exa 联网搜索',
+  exa_web_search: 'Exa 联网搜索（知识库 fallback）',
+  vision_verify_food: '视觉模型复核',
+}
+const toolDisplayName = (name) => toolDisplayNames[name] || name
 const goalModeLabel = computed(() => goalModeLabels[coachProfile.value.mode] || '尚未设置')
 const dailyCaloriesLabel = computed(() => {
   const value = positiveNumber(coachProfile.value.dailyCalories)
